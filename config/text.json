@@ -180,5 +180,13 @@
     "yourAnswer": "你選：",
     "tip": "解題技巧",
     "again": "再玩一次"
+  },
+  "economy": {
+    "coinName": "歐巴幣",
+    "coinsLabel": "歐巴幣 {n} 枚",
+    "coins": "{n} {name}",
+    "gems": "{n} 顆{name}",
+    "reward": "獲得 {items}！",
+    "noReward": "這次沒有新的獎勵：同一關同一天只算最好的一次，搶答賽一天最多 50 枚歐巴幣。"
   }
 }

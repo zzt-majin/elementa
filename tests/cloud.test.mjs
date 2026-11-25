@@ -29,21 +29,23 @@ function fakeBackend() {
     const pw = b.accounts[name];
     if (!pw) return { ok: false, error: 'nopw' };
     const mine = () => b.progress[name] || {};
+    const hist = () => b.log.filter((x) => x.name === name).map((x) => ({ id: x.id, at: x.at, level: x.level, score: x.score, total: x.total, kind: x.kind === 'game' ? 'game' : x.retry ? 'retry' : 'level' }));
     if (d.action === 'login') {
       if (d.password !== pw) return { ok: false, error: 'auth' };
-      return { ok: true, token: tok(name), progress: mine(), settings: { cards: '測驗後' } };
+      return { ok: true, token: tok(name), progress: mine(), settings: { cards: '測驗後' }, history: hist() };
     }
     if (d.token !== tok(name)) return { ok: false, error: 'auth' };
-    if (d.action === 'load') return { ok: true, progress: mine(), settings: { cards: '測驗後' } };
+    if (d.action === 'load') return { ok: true, progress: mine(), settings: { cards: '測驗後' }, history: hist() };
     if (d.action === 'save') {
       if (!/^[a-z0-9-]{1,60}$/.test(d.level) || !(d.score <= d.total)) return { ok: false, error: 'bad' };
-      b.log.push({ name, ...d });
+      if (d.id && b.log.some((x) => x.id === d.id)) return { ok: true, progress: mine(), history: hist() };
+      b.log.push({ name, ...d, at: Date.now() });
       if (!d.retry) {
         const p = (b.progress[name] ||= {});
         const o = p[d.level];
         if (!o || d.score > o.best || (d.score === o.best && d.used < o.used)) p[d.level] = { best: d.score, total: d.total, used: d.used };
       }
-      return { ok: true, progress: mine() };
+      return { ok: true, progress: mine(), history: hist() };
     }
     return { ok: false, error: 'bad' };
   }
@@ -53,6 +55,7 @@ function fakeBackend() {
 function setup(backend, extra = {}) {
   const progress = createProgress(memoryStorage());
   const statuses = [];
+  const histories = [];
   const store = extra.store || memoryStore();
   const cloud = createCloud({
     settings: cloudSettings({ api: API, timeoutMs: 5000 }),
@@ -60,8 +63,9 @@ function setup(backend, extra = {}) {
     fetchFn: backend.fetch,
     onStatus: (kid, s) => statuses.push(kid + ':' + s),
     onProgress: (kid, p) => progress.merge(kid, p),
+    onHistory: (kid, h) => histories.push([kid, h]),
   });
-  return { cloud, progress, statuses, store };
+  return { cloud, progress, statuses, store, histories };
 }
 
 const summary = (over = {}) => ({ kid: '姐姐', level: 'jie-6a-math-quiz-01', levelName: '測試', score: 5, total: 7, used: 300, timeUp: false, retry: false, ...over });
@@ -178,7 +182,7 @@ await test('關卡代號格式不對的不排隊；只送後台要的欄位', as
   cloud.enqueue({ ...summary(), items: [{ n: 1, given: '答案' }] });
   await cloud.flush();
   const sent = b.calls.find((c) => c.action === 'save');
-  assert.deepEqual(Object.keys(sent).sort(), ['action', 'level', 'levelName', 'name', 'retry', 'score', 'timeUp', 'token', 'total', 'used']);
+  assert.deepEqual(Object.keys(sent).sort(), ['action', 'id', 'level', 'levelName', 'name', 'retry', 'score', 'timeUp', 'token', 'total', 'used']);
 });
 
 await test('換一台裝置：登入狀態和待存清單存在 store，重新開網頁還在', async () => {
@@ -203,6 +207,40 @@ await test('待存清單有上限', async () => {
   const cloud = createCloud({ settings: cloudSettings({ api: API, queueMax: 10 }), store: memoryStore(), fetchFn: b.fetch });
   for (let i = 0; i < 15; i++) cloud.enqueue(summary({ score: i % 7 }));
   assert.equal(cloud.pending('姐姐'), 10);
+});
+
+await test('作答編號：用交卷時的 id 送出，後台回傳作答紀錄給帳本', async () => {
+  const b = fakeBackend();
+  const { cloud, histories } = setup(b);
+  await cloud.login('姐姐', 'pw1');
+  assert.deepEqual(histories.at(-1), ['姐姐', []]);
+  cloud.enqueue(summary({ id: '1764000000000-abc123', score: 7 }));
+  await cloud.flush();
+  assert.equal(b.log[0].id, '1764000000000-abc123');
+  const [kid, h] = histories.at(-1);
+  assert.equal(kid, '姐姐');
+  assert.equal(h.length, 1);
+  assert.equal(h[0].id, '1764000000000-abc123');
+  assert.equal(h[0].kind, 'level');
+});
+
+await test('同一個編號送兩次（上次其實存好了），後台只記一筆', async () => {
+  const b = fakeBackend();
+  const { cloud } = setup(b);
+  await cloud.login('姐姐', 'pw1');
+  cloud.enqueue(summary({ id: 'same-1' }));
+  cloud.enqueue(summary({ id: 'same-1' }));
+  await cloud.flush();
+  assert.equal(b.log.length, 1);
+});
+
+await test('不合格的編號就自己編一個', async () => {
+  const b = fakeBackend();
+  const { cloud } = setup(b);
+  await cloud.login('姐姐', 'pw1');
+  cloud.enqueue(summary({ id: '<script>' }));
+  await cloud.flush();
+  assert.match(b.log[0].id, /^\d+-[a-z0-9]+$/);
 });
 
 console.log(passed + ' 項通過' + (process.exitCode ? '，有失敗' : ''));

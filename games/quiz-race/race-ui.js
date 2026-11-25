@@ -240,6 +240,7 @@ export function createRaceUI(root, { text, settings, onResult, onClose, onOpenCh
     if (r.penaltyTotal > 0) card.append(el('p', 'muted', fill(T.endPenalty, { p: Math.round(r.penaltyTotal) })));
     if (info.saved === false) card.append(el('p', 'muted', T.notSaved));
     else if (info.record && !isRecord) card.append(el('p', 'muted', fill(T.bestLine, { n: info.record.best })));
+    if (info.saved !== false && info.rewardText) card.append(el('p', 'reward', info.rewardText));
 
     const actions = el('div', 'actions');
     actions.append(button(T.again, 'btn', countdown), button(T.leave, 'btn ghost', leave));

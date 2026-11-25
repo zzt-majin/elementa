@@ -1,7 +1,8 @@
 {
-  "_說明": "歐巴幣預設數字。Google 試算表「設定」工作表有填的話，以試算表為準。",
+  "_說明": "歐巴幣、寶石的取得規則和建設價格。數字改這裡就好，不用動程式。網站不另外記餘額，每次都從作答紀錄照這些規則重新算，所以改了數字，以前的成績也會照新規則重算。",
   "currencyName": "歐巴幣",
   "earn": {
+    "_說明": "歐巴幣。錯題小怪、魔王還沒做，那兩項先不會發。",
     "firstLoginGift": 50,
     "levelFirstSubmit": 10,
     "levelFirstPerfectPerQuestion": 5,
@@ -11,6 +12,26 @@
     "quizGamePerCorrect": 1,
     "quizGameNewRecord": 15,
     "quizGameDailyCap": 50
+  },
+  "gemEarn": {
+    "_說明": "寶石，照那一科給那一科的。perCorrect：測驗每答對一題給幾顆，每關每天只算當天最好的一次；firstPerfectBonus：某關第一次全對再給幾顆；gameEveryCorrect：搶答賽每答對幾題給一顆（0 = 不給）；dailyCapPerIsland：每科每天最多幾顆（0 = 不限）。錯題重練不給。",
+    "perCorrect": 1,
+    "firstPerfectBonus": 5,
+    "gameEveryCorrect": 5,
+    "dailyCapPerIsland": 30
+  },
+  "gems": {
+    "_說明": "每座島一種寶石，鍵是 subjects.json 的島代號。",
+    "chinese": { "name": "紅寶石", "color": "#e8506a" },
+    "english": { "name": "黃金", "color": "#f2b829" },
+    "math":    { "name": "鑽石", "color": "#7fd4f5" },
+    "social":  { "name": "藍寶石", "color": "#4a72e0" },
+    "science": { "name": "綠寶石", "color": "#3fbf7a" }
+  },
+  "build": {
+    "_說明": "建設價格。bridge：自己的島之間的橋（每座一樣）；road：連到姐妹群島的公路（兩人共有）。目前只有數學有題目，公路先只要鑽石。",
+    "bridge": { "coins": 120 },
+    "road": { "coins": 150, "gems": { "math": 60 } }
   },
   "prices": {
     "normal": { "min": 30, "max": 80 },

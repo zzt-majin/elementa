@@ -33,8 +33,9 @@ export function cloudSettings(raw = {}) {
  *   'saving' 正在存、'saved' 已存好、'offline' 連不上、'relogin' 密碼改過要重新登入、
  *   'rejected' 後台不收這筆（只留在這台裝置）
  * onProgress(kid, progress, settings)：後台回傳進度時呼叫，外面拿去合併
+ * onHistory(kid, history)：後台回傳作答紀錄時呼叫（歐巴幣、寶石用），格式見 engine/economy.js
  */
-export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onProgress = () => {}, now = () => Date.now() }) {
+export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onProgress = () => {}, onHistory = () => {}, now = () => Date.now() }) {
   const enabled = !!settings.api;
   const SES = 'session', QUE = 'queue', SET = 'settings';
   let flushing = null;
@@ -70,6 +71,7 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
       store.set(SET, all);
     }
     if (r.progress && typeof r.progress === 'object') onProgress(kid, r.progress, r.settings || null);
+    if (Array.isArray(r.history)) onHistory(kid, r.history);
   }
 
   const api = {
@@ -110,8 +112,9 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
       // 搶答賽（kind: 'game'）的代號一定是 game- 開頭，後台也這樣檢查
       const game = summary.kind === 'game';
       if (game !== /^game-/.test(summary.level)) return false;
+      // 編號：交卷時給的 summary.id（帳本用同一個），沒有才自己編
       const item = {
-        t: now() + '-' + Math.random().toString(36).slice(2, 8),
+        t: /^[\w-]{1,40}$/.test(summary.id || '') ? summary.id : now() + '-' + Math.random().toString(36).slice(2, 8),
         kid: summary.kid,
         level: summary.level,
         levelName: summary.levelName || '',
@@ -143,7 +146,7 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
       if (!item) return;
       onStatus(item.kid, 'saving');
       const { t, kid, ...rest } = item;
-      const r = await call({ action: 'save', name: kid, token: s[kid], ...rest });
+      const r = await call({ action: 'save', name: kid, token: s[kid], id: t, ...rest });
       if (r.ok) {
         drop(t);
         got(kid, r);

@@ -215,6 +215,7 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
       card.append(el('p', 'muted', extra.improved && !extra.firstTry ? fill(T.newBest, { n: extra.record.best, total: r.total }) : fill(T.best, { n: extra.record.best, total: r.total, t: mmss(extra.record.used) })));
     }
     if (r.retry) card.append(el('p', 'muted', T.retryNotCounted));
+    if (extra.rewardText) card.append(el('p', 'reward', extra.rewardText));
 
     const actions = el('div', 'actions');
     if (wrong.length) actions.append(button(fill(T.retry, { n: wrong.length }), 'btn', () => start(level, { only: wrong })));

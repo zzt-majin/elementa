@@ -10,6 +10,7 @@ export function createHud(root, text) {
   const muteBtn = $('#mute');
   const hint = $('#hint');
   const errorBox = $('#errors');
+  const walletBox = $('#wallet');
   $('#site-title').textContent = text.siteTitle;
   hint.textContent = text.hint;
 
@@ -131,6 +132,28 @@ export function createHud(root, text) {
         b.addEventListener('click', () => onPick(k));
         kidsBox.append(b);
       }
+    },
+
+    /** 上方的歐巴幣和寶石：w = { coins, gems: [{ code, name, color, n }] }；null 就藏起來 */
+    setWallet(w) {
+      if (!walletBox) return;
+      if (!w) { walletBox.hidden = true; return; }
+      const T = text.economy || {};
+      walletBox.hidden = false;
+      const coin = el('span', 'w-item coin');
+      coin.title = T.coinName || '';
+      coin.append(el('i', 'w-icon coin-icon'), el('b', '', String(w.coins)));
+      const items = [coin];
+      for (const g of w.gems) {
+        const s = el('span', 'w-item gem');
+        s.title = g.name;
+        const icon = el('i', 'w-icon gem-icon');
+        if (g.color) icon.style.setProperty('--gem', g.color);
+        s.append(icon, el('b', '', String(g.n)));
+        items.push(s);
+      }
+      walletBox.replaceChildren(...items);
+      walletBox.setAttribute('aria-label', [fill(T.coinsLabel || '{n}', { n: w.coins }), ...w.gems.map((g) => g.name + ' ' + g.n)].join('，'));
     },
 
     setMute(muted, onToggle) {

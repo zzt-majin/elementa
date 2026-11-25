@@ -6,6 +6,9 @@ const ACCOUNTS = '帳號';
 const SETTINGS = '設定';
 const PROGRESS = '進度';
 const LOG = '作答紀錄';
+const LOG_HEADERS = ['時間', '小孩', '關卡代號', '關卡名稱', '答對', '題數', '用時（秒）', '時間到', '類型', '編號'];
+// 作答紀錄的「類型」對應網站帳本的 kind（歐巴幣、寶石照這個算）
+const KINDS = { '整關': 'level', '錯題重練': 'retry', '搶答賽': 'game' };
 
 // 設定項目：程式用的代號、表上的名稱、預設值、可以填的值
 const SETTING_DEFS = [
@@ -29,7 +32,8 @@ function setup() {
     }));
   }
   sheet_(ss, PROGRESS, ['小孩', '關卡代號', '關卡名稱', '最佳答對', '題數', '最佳用時（秒）', '挑戰次數', '最後作答時間']);
-  sheet_(ss, LOG, ['時間', '小孩', '關卡代號', '關卡名稱', '答對', '題數', '用時（秒）', '時間到', '類型']);
+  const log = sheet_(ss, LOG, LOG_HEADERS);
+  if (!String(log.getRange(1, 10).getValue())) log.getRange(1, 10).setValue('編號'); // 舊的表補上第 10 欄
   secret_();
 }
 
@@ -85,10 +89,10 @@ function handle_(d) {
       Utilities.sleep(500);
       return { ok: false, error: 'auth' };
     }
-    return { ok: true, token: tok, progress: progress_(name), settings: settings_(name) };
+    return { ok: true, token: tok, progress: progress_(name), settings: settings_(name), history: history_(name) };
   }
   if (d.token !== tok) return { ok: false, error: 'auth' };
-  if (d.action === 'load') return { ok: true, progress: progress_(name), settings: settings_(name) };
+  if (d.action === 'load') return { ok: true, progress: progress_(name), settings: settings_(name), history: history_(name) };
   if (d.action === 'save') return save_(name, d);
   return { ok: false, error: 'bad' };
 }
@@ -107,13 +111,19 @@ function save_(name, d) {
   if (game !== /^game-/.test(level)) return { ok: false, error: 'bad' };
   const retry = !game && d.retry === true;
   const kind = game ? '搶答賽' : retry ? '錯題重練' : '整關';
+  const id = /^[\w-]{1,40}$/.test(String(d.id || '')) ? String(d.id) : '';
   const now = new Date();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    ss.getSheetByName(LOG).appendRow([now, name, level, levelName, score, total, used, d.timeUp === true ? '是' : '', kind]);
+    const log = ss.getSheetByName(LOG);
+    // 同一個編號已經存過（例如上次其實存好了、但網路斷了沒收到回覆）就不再存一次
+    if (id && log.getLastRow() > 1 && log.getRange(2, 10, log.getLastRow() - 1, 1).getDisplayValues().some(function (r) { return r[0] === id; })) {
+      return { ok: true, progress: progress_(name), history: history_(name) };
+    }
+    log.appendRow([now, name, level, levelName, score, total, used, d.timeUp === true ? '是' : '', kind, id]);
     if (!retry) {
       const sh = ss.getSheetByName(PROGRESS);
       const rows = sh.getDataRange().getValues();
@@ -137,7 +147,24 @@ function save_(name, d) {
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, progress: progress_(name) };
+  return { ok: true, progress: progress_(name), history: history_(name) };
+}
+
+// 某個小孩的每一次作答，給網站算歐巴幣和寶石。沒有編號的舊紀錄用「時間＋關卡」當編號
+function history_(name) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(LOG);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 10).getValues();
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (String(r[1]) !== name) continue;
+    const kind = KINDS[String(r[8])];
+    const at = r[0] instanceof Date ? r[0].getTime() : new Date(r[0]).getTime();
+    if (!kind || !isFinite(at)) continue;
+    out.push({ id: String(r[9] || '') || 'row-' + at + '-' + r[2], at: at, level: String(r[2]), score: Number(r[4]) || 0, total: Number(r[5]) || 0, kind: kind });
+  }
+  return out;
 }
 
 function progress_(name) {

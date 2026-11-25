@@ -38,6 +38,10 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
         if (sheet) lastSettings[kid] = key;
         if (merged || settingsChanged) world.refresh();
       },
+      onHistory(kid, history) {
+        // 別台裝置交的卷也算進歐巴幣和寶石
+        if (world.ledger?.merge(kid, history)) world.refreshWallet?.();
+      },
     });
     ui = createLoginUI(hudRoot, world.text.login || {}, {
       kid: () => world.kid(),

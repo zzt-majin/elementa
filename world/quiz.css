@@ -51,3 +51,6 @@
 .best { font-size: 13px; opacity: .8; }
 .best.won { color: #1c8757; opacity: 1; font-weight: 700; }
 @media (max-width: 480px) { .opts { grid-template-columns: 1fr; } .clock { font-size: 26px; } }
+
+/* 交卷、搶答賽結束時的「獲得 …」 */
+.reward { font-weight: 700; color: #b8860b; background: #fff6d6; border-radius: 10px; padding: 8px 12px; }

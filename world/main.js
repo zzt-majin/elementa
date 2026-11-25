@@ -15,6 +15,7 @@ import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
 import { materialize, mixLevel } from '../engine/generate.js';
 import { raceSettings, rulesFor, raceId, poolState, buildPool, createDrawer, raceSummary, shouldRecord } from '../games/quiz-race/race.js';
 import { createRaceUI } from '../games/quiz-race/race-ui.js';
+import { economyRules, computeWallet, createLedger, newEntryId } from '../engine/economy.js';
 
 const store = {
   get(k) { try { return localStorage.getItem('elementa.' + k); } catch { return null; } },
@@ -31,21 +32,25 @@ async function getJSON(url) {
 
 /**
  * hooks（都可以不給）：登入／雲端進度、歐巴幣、錯題小怪模組從這裡接上，不用改這個檔案。
- *   onReady(world)：群島畫好後呼叫一次。world = { progress, text, kids, kid(), refresh() }
+ *   onReady(world)：群島畫好後呼叫一次。world = { progress, text, kids, kid(), refresh(), ledger, refreshWallet(), wallet(kid) }
  *     refresh()：成績從別處合併進來後呼叫，打開中的測驗塔清單會重畫。
  *   onKidChange(kid)：切換小孩時呼叫。
  *   onResult(summary, info)：每次交卷後呼叫。summary 是 resultSummary() 的精簡紀錄，info 是 progress.record() 的回傳。
  *   settingsOf(kid)：家長在試算表「設定」填的規則（登入模組提供）；沒有就用 config 的預設。
  *     學習屋用 cards，遊戲帳篷用 gameSeconds、wrongPenalty、gamePool。
  *   搶答賽結束也會呼叫 onResult，summary.kind 是 'game'，關卡代號是 game-<島的代號>。
+ *   summary.id 是這筆作答的編號，送到試算表時一起存，帳本靠它合併本機和雲端的紀錄。
+ *   world.ledger.merge(kid, history)＋world.refreshWallet()：雲端回傳作答紀錄時，合併後重算歐巴幣和寶石。
  */
 export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
-  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig] = await Promise.all([
+  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig] = await Promise.all([
     ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
     getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
     getJSON(configPath + 'cards.json').catch(() => ({})), // 沒有 cards.json 就用引擎預設
     getJSON(configPath + 'mix.json').catch(() => ({})),
     getJSON(configPath + 'game.json').catch(() => ({})), // 沒有 game.json 就用搶答賽預設
+    getJSON(configPath + 'economy.json').catch(() => ({})), // 歐巴幣、寶石、建設價格
+    getJSON(configPath + 'family.json').catch(() => ({})), // 家裡有哪些小孩（還沒有關卡的也能登入）
   ]);
   const presets = (Array.isArray(mixConfig?.presets) ? mixConfig.presets : [])
     .map((p) => ({ count: Math.round(Number(p.count)), minutes: Number(p.minutes) }))
@@ -97,7 +102,9 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const islandsGroup = new THREE.Group();
   view.scene.add(islandsGroup);
 
-  const kids = kidsIn(levels);
+  // 小孩：config/family.json 列的，加上關卡檔裡出現的（還沒有關卡的小孩也能登入，看到建造中的島）
+  const familyKids = (Array.isArray(familyConfig?.kids) ? familyConfig.kids : []).filter((k) => typeof k === 'string' && k.trim()).map((k) => k.trim());
+  const kids = [...new Set([...familyKids, ...kidsIn(levels)])];
   let kid = kids.includes(store.get('kid')) ? store.get('kid') : kids[0] || null;
   let focused = null;
   let lastBuilding = null;
@@ -105,6 +112,43 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   // 成績：先存在這台裝置；登入模組做好後由 hooks 同步到試算表
   const progress = createProgress(localStorageStorage('elementa.progress'));
   const minutesOf = (l) => timeLimitMinutes(l, settings.minutesPerQuestion);
+
+  // 歐巴幣和寶石：不記餘額，每次從作答紀錄照 config/economy.json 重算（engine/economy.js）
+  const econ = { ...economyRules(economyConfig), currencyName: economyConfig?.currencyName || '' };
+  const ledger = createLedger(localStorageStorage('elementa.ledger'));
+  const islandOfSubject = (s) => subjects.islands.find((i) => i.subject === s)?.code || '';
+  /** 試算表來的紀錄沒有科目：從關卡代號找（一般關卡、綜合練習 xxx-mix-10、搶答賽 game-<島>） */
+  function islandOf(e) {
+    const m = /^game-([a-z0-9-]+)$/.exec(e.level);
+    if (m) return subjects.islands.some((i) => i.code === m[1]) ? m[1] : '';
+    const l = levels.find((x) => x.meta.id === e.level);
+    if (l) return islandOfSubject(l.meta.subject);
+    const mix = /^(.*)-mix-\d+$/.exec(e.level);
+    if (mix) { const s = levels.find((x) => x.meta.id.startsWith(mix[1] + '-')); if (s) return islandOfSubject(s.meta.subject); }
+    return '';
+  }
+  const walletOf = (k) => computeWallet({ history: ledger.history(k), spends: [], rules: econ, islandOf });
+  function showWallet() {
+    if (!kid) { hud.setWallet(null); return; }
+    const w = walletOf(kid);
+    // 有關卡的島、或已經有寶石的島，才顯示那一種寶石
+    const shown = subjects.islands.filter((i) => econ.gems[i.code] && (levelsFor(levels, { kid, subject: i.subject }).count || w.gems[i.code]))
+      .map((i) => ({ code: i.code, name: econ.gems[i.code].name, color: econ.gems[i.code].color, n: w.gems[i.code] || 0 }));
+    hud.setWallet({ coins: w.coins, gems: shown });
+  }
+  /** 記進帳本，回傳交卷畫面要顯示的「獲得 …」 */
+  function earn(k, summary, kind) {
+    const island = islandOfSubject(summary.subject);
+    ledger.add(k, { id: summary.id, at: Date.parse(summary.at) || Date.now(), level: summary.level, island, score: summary.score, total: summary.total, kind });
+    const ev = walletOf(k).events.find((x) => x.id === summary.id);
+    showWallet();
+    if (!ev || kind === 'retry') return '';
+    const T = text.economy || {};
+    const parts = [];
+    if (ev.coins) parts.push(fill(T.coins, { n: ev.coins, name: econ.currencyName || '歐巴幣' }));
+    for (const [code, n] of Object.entries(ev.gems)) parts.push(fill(T.gems, { n, name: econ.gems[code]?.name || '' }));
+    return parts.length ? fill(T.reward, { items: parts.join('、') }) : (T.noReward || '');
+  }
 
   let paused = false;
   const overlayChange = (open) => {
@@ -119,8 +163,10 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     onOpenChange: overlayChange,
     onResult(result, level) {
       const info = progress.record(level.meta.kid, level.meta.id, result);
-      try { hooks.onResult?.(resultSummary(result, level), info); } catch (err) { console.error(err); }
-      return info;
+      const summary = { ...resultSummary(result, level), id: newEntryId() };
+      const rewardText = earn(summary.kid, summary, result.retry ? 'retry' : 'level');
+      try { hooks.onResult?.(summary, info); } catch (err) { console.error(err); }
+      return { ...info, rewardText };
     },
     onClose() {
       if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind);
@@ -167,6 +213,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       g.userData.phase = def.position[0] * 0.3 + def.position[1] * 0.2;
       islandsGroup.add(g);
     }
+    showWallet();
     hud.setKids(kids, kid, (k) => {
       kid = k; store.set('kid', k); rebuild(); if (focused) openIsland(focused);
       try { hooks.onKidChange?.(k); } catch (err) { console.error(err); }
@@ -257,8 +304,10 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const m = raceMeta;
     if (!m || !shouldRecord(result)) return { saved: false };
     const info = progress.record(m.kid, m.id, result);
-    try { hooks.onResult?.(raceSummary(result, m), info); } catch (err) { console.error(err); }
-    return info;
+    const summary = { ...raceSummary(result, m), id: newEntryId() };
+    const rewardText = earn(m.kid, summary, 'game');
+    try { hooks.onResult?.(summary, info); } catch (err) { console.error(err); }
+    return { ...info, rewardText };
   }
 
   // ---------- 出題 ----------
@@ -387,6 +436,10 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     text,
     kids,
     kid: () => kid,
+    ledger,
+    /** 雲端合併作答紀錄後呼叫，重算畫面上的歐巴幣和寶石 */
+    refreshWallet: () => showWallet(),
+    wallet: (k = kid) => walletOf(k),
     refresh() {
       if (quizRoot.hidden === false || cardsUI?.isOpen || raceUI?.isOpen) return; // 作答、看卡中不動，關掉後會自己重畫
       if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind);
