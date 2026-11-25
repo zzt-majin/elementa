@@ -1,0 +1,39 @@
+{
+  "_說明": "3D 場景的參數。數字改這裡就好，不用動程式。",
+  "camera": {
+    "fov": 45,
+    "overviewDistance": 46,
+    "overviewHeight": 30,
+    "focusDistance": 15,
+    "focusHeight": 9,
+    "flySeconds": 1.1,
+    "dragSpeed": 0.005,
+    "autoSpinPerSecond": 0.03
+  },
+  "island": {
+    "radius": 5.2,
+    "bobAmount": 0.12,
+    "bobSpeed": 0.8
+  },
+  "sea": {
+    "size": 220,
+    "waveHeight": 0.18,
+    "waveSpeed": 0.9
+  },
+  "quality": {
+    "maxPixelRatio": 2,
+    "shadows": true
+  },
+  "music": {
+    "_說明": "背景音樂是瀏覽器即時合成的八音盒，旋律是本專案自己寫的。notes 用「音名+八度」，- 是休止；beatsPerMinute 是速度；volume 0～1。",
+    "beatsPerMinute": 96,
+    "volume": 0.18,
+    "notes": [
+      "E5", "G5", "C6", "G5", "A5", "G5", "E5", "-",
+      "F5", "A5", "D6", "A5", "G5", "E5", "D5", "-",
+      "E5", "G5", "C6", "E6", "D6", "C6", "A5", "G5",
+      "F5", "E5", "D5", "G5", "C5", "-", "-", "-"
+    ],
+    "bass": ["C3", "C3", "F3", "G3", "C3", "A2", "F2", "G2"]
+  }
+}

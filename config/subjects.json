@@ -1,0 +1,15 @@
+{
+  "_說明": "群島上有哪些島。subject 要和關卡檔的 subject 欄位一字不差；position 是島在海上的位置 [x, z]；size 是島的大小倍率。要加科目就在這裡加一筆。",
+  "islands": [
+    { "code": "math",    "subject": "數學", "name": "數學島", "position": [0, 0],     "size": 1.15, "accent": "#ffb7c5" },
+    { "code": "chinese", "subject": "國語", "name": "國語島", "position": [-15, -7], "size": 1.0,  "accent": "#ffd98a" },
+    { "code": "english", "subject": "英語", "name": "英語島", "position": [15, -7],  "size": 1.0,  "accent": "#a8d8ff" },
+    { "code": "science", "subject": "自然", "name": "自然島", "position": [-10, 12], "size": 0.95, "accent": "#b5e8a0" },
+    { "code": "social",  "subject": "社會", "name": "社會島", "position": [10, 12],  "size": 0.95, "accent": "#d7c2ff" }
+  ],
+  "buildings": {
+    "tower": { "label": "測驗塔", "does": "限時測驗" },
+    "house": { "label": "學習屋", "does": "學習卡" },
+    "tent":  { "label": "遊戲帳篷", "does": "搶答賽" }
+  }
+}

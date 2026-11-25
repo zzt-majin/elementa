@@ -1,0 +1,24 @@
+{
+  "_說明": "配色。princesses 是四位原創公主的代表色，選了哪一位，群島的屋頂、旗子和按鈕就用她的顏色。defaultPrincess 是還沒選公主時用的。",
+  "defaultPrincess": "berry",
+  "princesses": {
+    "berry":  { "name": "莓莓", "main": "#ff7fa8", "soft": "#ffd3e0", "deep": "#d94f7c" },
+    "salt":   { "name": "海鹽", "main": "#5fb8e8", "soft": "#cfeaff", "deep": "#2f86b8" },
+    "lemon":  { "name": "檸檬", "main": "#f5c842", "soft": "#fff1bf", "deep": "#c99a12" },
+    "mint":   { "name": "薄荷", "main": "#5fcfa5", "soft": "#cdf5e4", "deep": "#2f9e76" }
+  },
+  "scene": {
+    "skyTop": "#8fd0ff",
+    "skyBottom": "#fff4fa",
+    "sea": "#6cc7e8",
+    "seaDeep": "#3a9fcf",
+    "sand": "#ffe3b3",
+    "grass": "#9be07f",
+    "grassDark": "#74c25c",
+    "rock": "#c9b8a8",
+    "wood": "#c98f5f",
+    "wall": "#fff8f0",
+    "construction": "#ffcf5a",
+    "label": "#5a3d4f"
+  }
+}
