@@ -1,0 +1,53 @@
+/* world/quiz.css — 測驗塔的作答與成績畫面。顏色跟著公主代表色（--main / --soft / --deep）。 */
+#quiz { position: fixed; inset: 0; overflow-y: auto; background: linear-gradient(var(--soft), var(--paper) 240px); -webkit-overflow-scrolling: touch; }
+.quiz-wrap { max-width: 760px; margin: 0 auto; padding: 18px 16px 56px; display: flex; flex-direction: column; gap: 16px; }
+.quiz-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.quiz-bar h2 { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.quiz-bar .tag { font-family: "Noto Sans TC", sans-serif; }
+.clock { font: 700 32px/1.4 "LXGW WenKai TC", serif; font-variant-numeric: tabular-nums; padding: 0 16px; border-radius: 14px; background: #fff; color: var(--deep); box-shadow: 0 3px 0 var(--soft); }
+.clock.low { color: #d3243b; box-shadow: 0 3px 0 #ffb3bd; }
+.dots { display: flex; flex-wrap: wrap; gap: 8px; }
+.dots button { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--soft); background: #fff; color: var(--ink); font: 700 16px "Noto Sans TC", sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; }
+.dots button.done { background: var(--main); border-color: var(--main); color: #fff; }
+.dots button.cur { box-shadow: 0 0 0 3px var(--deep); }
+.quiz-card { background: #fff; border-radius: 22px; padding: 20px; box-shadow: 0 6px 0 var(--soft), 0 14px 30px rgba(90, 40, 70, .12); }
+.quiz-card .prompt { font-size: 21px; font-weight: 500; line-height: 1.65; margin: 4px 0 16px; white-space: pre-line; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opt { text-align: left; min-height: 56px; padding: 12px 14px; border: 2px solid var(--soft); border-radius: 16px; background: #fff; color: var(--ink); font: 18px/1.5 "Noto Sans TC", sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; }
+.opt:hover { border-color: var(--main); }
+.opt[aria-pressed="true"] { border-color: var(--deep); background: var(--soft); font-weight: 700; }
+.fill { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 20px; }
+.fill input { font: 24px "Noto Sans TC", sans-serif; font-variant-numeric: tabular-nums; width: 220px; max-width: 100%; padding: 8px 14px; border: 2px solid var(--main); border-radius: 14px; color: var(--ink); background: #fff; }
+.fill input:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
+.warns:empty { display: none; }
+.warn { margin: 0; color: #c21d36; font-weight: 700; }
+.quiz-nav, .quiz-wrap > .side { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+.quiz-wrap > .side { justify-content: flex-start; }
+.quiz-nav .side { display: flex; gap: 10px; }
+.btn.submit { min-width: 120px; }
+/* 成績 */
+.score { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; margin-bottom: 10px; }
+.score .big { font: 700 64px/1 "LXGW WenKai TC", serif; font-variant-numeric: tabular-nums; color: var(--deep); }
+.score .big small { font-size: 28px; opacity: .6; }
+.stamp { font: 700 24px "LXGW WenKai TC", serif; color: #1c8757; border: 3px solid #1c8757; border-radius: 10px; padding: 4px 14px; transform: rotate(-6deg); }
+.stamp.miss { color: #d3243b; border-color: #d3243b; }
+@media (prefers-reduced-motion: no-preference) {
+  .stamp { animation: stamp .45s cubic-bezier(.2, 1.4, .4, 1) both; }
+  @keyframes stamp { from { transform: rotate(-6deg) scale(2.2); opacity: 0; } to { transform: rotate(-6deg) scale(1); opacity: 1; } }
+}
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.review { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.review li { background: #fff; border-radius: 16px; padding: 14px 16px; border-left: 8px solid #1c8757; }
+.review li.bad { border-left-color: #d3243b; }
+.review h3 { margin: 0; font-size: 17px; font-weight: 500; line-height: 1.6; color: var(--ink); white-space: pre-line; }
+.review .ans { margin: 6px 0 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+.review b.r { color: #d3243b; }
+.review b.g { color: #1c8757; }
+.review .tip { margin: 8px 0 0; font-size: 15px; background: var(--paper); border-radius: 10px; padding: 8px 12px; white-space: pre-line; }
+.review .tip strong { font-family: "LXGW WenKai TC", serif; color: var(--deep); }
+/* 測驗塔清單裡的開始鈕和最佳紀錄 */
+.lv-act { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; }
+.lv-act .btn { margin-top: 0; }
+.best { font-size: 13px; opacity: .8; }
+.best.won { color: #1c8757; opacity: 1; font-weight: 700; }
+@media (max-width: 480px) { .opts { grid-template-columns: 1fr; } .clock { font-size: 26px; } }

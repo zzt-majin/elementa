@@ -19,11 +19,12 @@ export function createHud(root, text) {
     if (content !== undefined) e.textContent = content;
     return e;
   }
-  const fill = (s, vals) => s.replace(/\{(\w)\}/g, (_, k) => String(vals[k] ?? ''));
+  const fill = (s, vals) => String(s).replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
 
   function open(nodes, onBack) {
     panelBody.replaceChildren(...nodes);
     const back = el('button', 'btn ghost', text.back);
+    back.type = 'button';
     back.addEventListener('click', onBack);
     panelBody.append(back);
     panel.hidden = false;
@@ -37,6 +38,7 @@ export function createHud(root, text) {
       kidsBox.hidden = false;
       for (const k of kids) {
         const b = el('button', 'chip', k);
+        b.type = 'button';
         b.setAttribute('aria-pressed', String(k === current));
         b.addEventListener('click', () => onPick(k));
         kidsBox.append(b);
@@ -59,6 +61,7 @@ export function createHud(root, text) {
         const row = el('div', 'tiles');
         for (const [kind, b] of Object.entries(buildings)) {
           const t = el('button', 'tile ' + kind);
+          t.type = 'button';
           t.append(el('strong', '', b.label), el('span', '', b.does));
           t.addEventListener('click', () => onBuilding(kind));
           row.append(t);
@@ -68,7 +71,10 @@ export function createHud(root, text) {
       open(nodes, onBack);
     },
 
-    /** 點到建築：說明＋這座島的關卡 */
+    /**
+     * 點到建築：說明＋這座島的關卡。
+     * extra：{ choiceCount, minutes(level), best(level), onStart(level) }
+     */
     showBuilding(island, kind, building, info, extra, onBack) {
       const nodes = [el('p', 'muted', island.name), el('h2', '', building.label)];
       nodes.push(el('p', '', text[kind + 'Body'] || ''));
@@ -83,9 +89,21 @@ export function createHud(root, text) {
           li.append(head);
           if (l.meta.why) li.append(el('p', 'why', l.meta.why));
           if (kind === 'tower') {
-            const go = el('button', 'btn', text.startSoon);
-            go.disabled = true;
-            li.append(go);
+            if (!l.questions.length) {
+              li.append(el('p', 'tag', text.notReady));
+            } else {
+              const best = extra.best ? extra.best(l) : null;
+              const row = el('div', 'lv-act');
+              const go = el('button', 'btn', best ? text.retryQuiz : text.startQuiz);
+              go.type = 'button';
+              go.addEventListener('click', () => extra.onStart(l));
+              row.append(go);
+              if (best) {
+                const perfect = best.best >= l.questions.length;
+                row.append(el('span', perfect ? 'best won' : 'best', (perfect ? text.towerPerfect + '・' : '') + fill(text.towerBest, { n: best.best, total: l.questions.length, t: extra.mmss(best.used) })));
+              }
+              li.append(row);
+            }
           }
           ul.append(li);
         }

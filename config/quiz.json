@@ -1,0 +1,8 @@
+{
+  "_說明": "測驗塔的計時與交卷規則。要調整秒數改這裡，不用改程式。",
+  "minutesPerQuestion": 1,
+  "retrySecondsPerQuestion": 60,
+  "lowTimeSeconds": 60,
+  "tickMs": 250,
+  "warnBlankOnSubmit": true
+}

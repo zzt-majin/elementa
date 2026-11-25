@@ -1,0 +1,6 @@
+{
+  "_說明": "進度後台設定。api 填家長自己的 Google Apps Script 網頁應用程式網址（https://script.google.com/macros/s/…/exec）。空白時網站不登入，成績只存在這台裝置。這個網址會公開在 repo 裡，它只接受登入和存進度，不會回傳密碼；試算表本身不要公開分享。",
+  "api": "https://script.google.com/macros/s/AKfycbxxMkb8ppdHksHxSgsR9kN0WpEYA7NKaEtmFP7RDemU6MA5IuHuP93cHDqoPKKG3-9wmQ/exec",
+  "timeoutMs": 15000,
+  "queueMax": 200
+}

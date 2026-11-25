@@ -21,3 +21,15 @@
 這個 repo 是公開的，只能放程式和題目。考卷掃描檔、作答紀錄、密碼都不要放進來。
 
 第三方元件的授權見 `LICENSES.md`。
+
+## 測試
+
+裝了 Node 的電腦可以在這個資料夾執行：
+
+```
+node tests/levels.test.mjs
+node tests/quiz.test.mjs
+node tests/cloud.test.mjs
+```
+
+測驗引擎的說明見 `docs/測驗引擎.md`；登入與雲端進度見 `docs/雲端進度.md`（後台網址填在 `config/backend.json`）。

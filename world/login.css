@@ -1,0 +1,16 @@
+/* world/login.css — 3D 群島的登入卡片和上方列的同步狀態（world/account.js 產生） */
+.account { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 6px 4px 14px; border-radius: 999px; background: rgba(255,255,255,.82); font-size: 14px; }
+.account[hidden] { display: none; }
+.account .who { font-weight: 700; color: var(--deep); }
+.account .sync { opacity: .8; }
+.account .sync.warn { color: #b0402a; opacity: 1; font-weight: 700; }
+.account .btn.small { min-height: 36px; }
+.link { min-height: 40px; padding: 0 8px; border: 0; background: none; font: 14px "Noto Sans TC", sans-serif; color: var(--deep); text-decoration: underline; cursor: pointer; }
+.login-card { position: absolute; top: 76px; left: max(16px, 3vw); width: min(360px, calc(100% - 32px)); padding: 20px; border-radius: 22px; background: var(--paper); box-shadow: 0 6px 0 var(--soft), 0 18px 40px rgba(90, 40, 70, .22); }
+.login-card[hidden] { display: none; }
+.login-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.login-form label { font-weight: 700; }
+.login-form input { flex: 1 1 140px; min-height: 44px; padding: 6px 12px; border: 2px solid var(--soft); border-radius: 12px; font: 18px "Noto Sans TC", sans-serif; color: var(--ink); background: #fff; }
+.login-form input:focus-visible { outline: 3px solid var(--deep); outline-offset: 1px; border-color: var(--main); }
+.login-error { color: #b0402a; font-weight: 700; }
+.login-card .link { padding-left: 0; }

@@ -122,7 +122,9 @@ export function levelsFor(levels, { kid, subject }) {
   return { count: list.length, groups: [...groups].map(([title, items]) => ({ title, items })) };
 }
 
-/** 限時：有填 minutes 用它，沒填就一題 1 分鐘 */
-export function timeLimitMinutes(level) {
-  return Number.isFinite(level.meta.minutes) ? level.meta.minutes : level.questions.length;
+/** 限時（分鐘）：有填 minutes 用它，沒填就照題數 × 每題分鐘（預設 1，從 config/quiz.json 傳進來） */
+export function timeLimitMinutes(level, minutesPerQuestion = 1) {
+  return Number.isFinite(level.meta.minutes) && level.meta.minutes > 0
+    ? level.meta.minutes
+    : Math.max(1, level.questions.length) * minutesPerQuestion;
 }

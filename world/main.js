@@ -1,12 +1,15 @@
 // world/main.js
-// 把設定、關卡和 3D 場景接在一起。index.html 只呼叫 startWorld()。
+// 把設定、關卡、測驗引擎和 3D 場景接在一起。index.html 只呼叫 startWorld()。
 import * as THREE from 'three';
 import { loadLevels, kidsIn, levelsFor, timeLimitMinutes } from '../engine/levels.js';
+import { quizSettings, resultSummary, mmss } from '../engine/quiz.js';
+import { createProgress, localStorageStorage } from '../engine/progress.js';
 import { createScene } from './scene.js';
 import { createCameraRig } from './camera.js';
 import { buildIsland, whatWasHit } from './islands.js';
 import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
+import { createQuizUI } from './quiz-ui.js';
 
 const store = {
   get(k) { try { return localStorage.getItem('elementa.' + k); } catch { return null; } },
@@ -19,10 +22,19 @@ async function getJSON(url) {
   return res.json();
 }
 
-export async function startWorld({ canvas, hudRoot, configPath = 'config/', levelsPath = 'content/levels/' }) {
-  const [subjects, theme, world, text] = await Promise.all(
-    ['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
-  );
+/**
+ * hooks（都可以不給）：登入／雲端進度、歐巴幣、錯題小怪模組從這裡接上，不用改這個檔案。
+ *   onReady(world)：群島畫好後呼叫一次。world = { progress, text, kids, kid(), refresh() }
+ *     refresh()：成績從別處合併進來後呼叫，打開中的測驗塔清單會重畫。
+ *   onKidChange(kid)：切換小孩時呼叫。
+ *   onResult(summary, info)：每次交卷後呼叫。summary 是 resultSummary() 的精簡紀錄，info 是 progress.record() 的回傳。
+ */
+export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
+  const [subjects, theme, world, text, quizConfig] = await Promise.all([
+    ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
+    getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
+  ]);
+  const settings = quizSettings(quizConfig);
   const hud = createHud(hudRoot, text);
   const loading = hudRoot.querySelector('#loading');
   loading.textContent = text.loading;
@@ -59,6 +71,30 @@ export async function startWorld({ canvas, hudRoot, configPath = 'config/', leve
   const kids = kidsIn(levels);
   let kid = kids.includes(store.get('kid')) ? store.get('kid') : kids[0] || null;
   let focused = null;
+  let lastBuilding = null;
+
+  // 成績：先存在這台裝置；登入模組做好後由 hooks 同步到試算表
+  const progress = createProgress(localStorageStorage('elementa.progress'));
+  const minutesOf = (l) => timeLimitMinutes(l, settings.minutesPerQuestion);
+
+  let paused = false;
+  const quiz = createQuizUI(quizRoot, {
+    text,
+    settings,
+    onOpenChange(open) {
+      paused = open; // 作答時 3D 場景不畫，平板比較省電
+      hudRoot.hidden = open;
+      canvas.hidden = open;
+    },
+    onResult(result, level) {
+      const info = progress.record(level.meta.kid, level.meta.id, result);
+      try { hooks.onResult?.(resultSummary(result, level), info); } catch (err) { console.error(err); }
+      return info;
+    },
+    onClose() {
+      if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind);
+    },
+  });
 
   function rebuild() {
     islandsGroup.clear();
@@ -72,7 +108,10 @@ export async function startWorld({ canvas, hudRoot, configPath = 'config/', leve
       g.userData.phase = def.position[0] * 0.3 + def.position[1] * 0.2;
       islandsGroup.add(g);
     }
-    hud.setKids(kids, kid, (k) => { kid = k; store.set('kid', k); rebuild(); if (focused) openIsland(focused); });
+    hud.setKids(kids, kid, (k) => {
+      kid = k; store.set('kid', k); rebuild(); if (focused) openIsland(focused);
+      try { hooks.onKidChange?.(k); } catch (err) { console.error(err); }
+    });
   }
   rebuild();
 
@@ -83,6 +122,7 @@ export async function startWorld({ canvas, hudRoot, configPath = 'config/', leve
     const def = byCode(code);
     if (!def) return;
     focused = code;
+    lastBuilding = null;
     const g = groupOf(code);
     rig.focus(g.position, def.size || 1);
     hud.showIsland(def, levelsFor(levels, { kid, subject: def.subject }), subjects.buildings, (kind) => openBuilding(code, kind), backToAll);
@@ -93,14 +133,22 @@ export async function startWorld({ canvas, hudRoot, configPath = 'config/', leve
     const info = levelsFor(levels, { kid, subject: def.subject });
     if (!info.count) { openIsland(code); return; }
     focused = code;
+    lastBuilding = { code, kind };
     const g = groupOf(code);
     rig.focus(g.position, (def.size || 1) * 0.8);
     const choiceCount = info.groups.flatMap((x) => x.items).reduce((s, l) => s + l.questions.filter((q) => q.type === '選擇').length, 0);
-    hud.showBuilding(def, kind, subjects.buildings[kind], info, { choiceCount, minutes: timeLimitMinutes }, () => openIsland(code));
+    hud.showBuilding(def, kind, subjects.buildings[kind], info, {
+      choiceCount,
+      minutes: minutesOf,
+      mmss,
+      best: (l) => progress.get(l.meta.kid, l.meta.id),
+      onStart: (l) => quiz.start(l),
+    }, () => openIsland(code));
   }
 
   function backToAll() {
     focused = null;
+    lastBuilding = null;
     hud.close();
     rig.overview();
   }
@@ -149,11 +197,24 @@ export async function startWorld({ canvas, hudRoot, configPath = 'config/', leve
   loading.hidden = true;
   rig.overview();
 
+  const api = {
+    progress,
+    text,
+    kids,
+    kid: () => kid,
+    refresh() {
+      if (quizRoot.hidden === false) return; // 作答中不動，關掉後會自己重畫
+      if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind);
+    },
+  };
+  try { hooks.onReady?.(api); } catch (err) { console.error(err); }
+
   // 動畫
   const clock = new THREE.Clock();
   const bob = world.island;
   view.renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
+    if (paused) return;
     const t = clock.elapsedTime;
     view.update(t);
     for (const g of islandsGroup.children) {
@@ -164,7 +225,7 @@ export async function startWorld({ canvas, hudRoot, configPath = 'config/', leve
     view.render();
   });
 
-  return { openIsland, backToAll };
+  return { ...api, openIsland, backToAll, quiz };
 }
 
 function webglOK() {
