@@ -104,10 +104,11 @@ export function makeTree(c, scale = 1) {
 }
 
 /** 浮在島上方的名字牌 */
-export function makeLabel(text, c, { sub = '', width = 6 } = {}) {
+// screenWidth：名字牌在畫面上的寬度（畫面高度的幾分之幾），遠近都一樣大，不會擋住近的島
+export function makeLabel(text, c, { sub = '', screenWidth = 0.15 } = {}) {
   const tex = textTexture(text, { fg: c.label, bg: 'rgba(255,255,255,0.92)', w: 512, h: sub ? 200 : 150, size: 84, sub, round: true, border: c.main });
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
-  sprite.scale.set(width, width * (tex.image.height / tex.image.width), 1);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, sizeAttenuation: false }));
+  sprite.scale.set(screenWidth, screenWidth * (tex.image.height / tex.image.width), 1);
   sprite.renderOrder = 10;
   return sprite;
 }

@@ -133,7 +133,9 @@ export async function startWorld({ canvas, hudRoot, configPath = 'config/', leve
   // 音樂：第一次點畫面才開始（瀏覽器規定）
   const music = createMusicBox(world.music, { muted: store.get('muted') === '1' });
   const startGate = hudRoot.querySelector('#start');
-  startGate.textContent = text.tapToStart;
+  const startText = document.createElement('span');
+  startText.textContent = text.tapToStart;
+  startGate.replaceChildren(startText);
   startGate.hidden = false;
   startGate.addEventListener('click', () => { startGate.hidden = true; music.start(); }, { once: true });
   const syncMute = () => hud.setMute(music.muted, () => {
