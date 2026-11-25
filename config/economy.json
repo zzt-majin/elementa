@@ -1,0 +1,20 @@
+{
+  "_說明": "歐巴幣預設數字。Google 試算表「設定」工作表有填的話，以試算表為準。",
+  "currencyName": "歐巴幣",
+  "earn": {
+    "firstLoginGift": 50,
+    "levelFirstSubmit": 10,
+    "levelFirstPerfectPerQuestion": 5,
+    "levelRepeatPerfectDaily": 5,
+    "defeatMistakeMonster": 8,
+    "defeatBoss": 100,
+    "quizGamePerCorrect": 1,
+    "quizGameNewRecord": 15,
+    "quizGameDailyCap": 50
+  },
+  "prices": {
+    "normal": { "min": 30, "max": 80 },
+    "rare": { "min": 120, "max": 200 },
+    "bossExclusive": null
+  }
+}

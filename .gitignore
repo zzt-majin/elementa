@@ -1,0 +1,25 @@
+# 這個 repo 是公開的。以下檔案絕對不能上傳。
+
+# 考卷掃描檔（含姓名、學校、班級）
+scans/
+private/
+*.pdf
+*掃描*
+*考卷原檔*
+
+# 作答紀錄與成績（孩子的學習表現，屬敏感資料）
+作答紀錄*
+*records*
+*.xlsx
+*.csv
+
+# 密碼、金鑰、本機設定
+.env
+*.key
+secrets*
+config/local*.json
+
+# 系統檔
+.DS_Store
+Thumbs.db
+desktop.ini
