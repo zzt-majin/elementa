@@ -549,5 +549,304 @@ const twoUnit = {
   },
 };
 
+// =====================================================================
+// 2026-11-25 新增：照姐姐 11 月新考卷的錯誤加的題型
+// =====================================================================
+
+const divisors = (n) => { const out = []; for (let i = 1; i <= n; i++) if (n % i === 0) out.push(i); return out; };
+const PRIMES = [2, 3, 5, 7, 11];
+
+const factorMore = {
+  /** 裁成最大的正方形（最大公因數）、拼成最小的正方形（最小公倍數），以及要幾張：長邊張數 × 寬邊張數 */
+  'factor-square'(rng) {
+    const v = rng.int(0, 2);
+    if (v < 2) {
+      const g = rng.int(3, 30);
+      const [p, q] = coprimePair(rng, 2, 9);
+      const L = g * Math.max(p, q), W = g * Math.min(p, q);
+      if (L > 300) retry();
+      const [thing, u] = rng.pick([['一張長方形色紙', '公分'], ['一塊長方形菜園', '公尺'], ['一塊長方形的布', '公分'], ['一張長方形牛皮紙', '公分']]);
+      const base = thing + '長 ' + L + ' ' + u + '、寬 ' + W + ' ' + u + '，要裁成邊長是整數' + u + '、大小一樣的正方形，剛好全部裁完。';
+      const nL = L / g, nW = W / g;
+      if (v === 0) {
+        return fill(base + '正方形的邊長最長是幾' + u + '？', [String(g)], u,
+          '把大的裁成小的，正方形的邊長要能整除長和寬，是「公因數」；要最長，就是最大公因數。' + L + ' 和 ' + W + ' 的最大公因數是 ' + g + '。不是最小公倍數 ' + lcm(L, W) + '：那比原來的' + thing.slice(1) + '還大，根本裁不出來。');
+      }
+      return fill(base + '邊長最長的時候，可以裁成幾個正方形？', [String(nL * nW)], '個',
+        '先求邊長：' + L + ' 和 ' + W + ' 的最大公因數是 ' + g + '。長邊可以排 ' + L + ' ÷ ' + g + ' ＝ ' + nL + ' 個，寬邊可以排 ' + W + ' ÷ ' + g + ' ＝ ' + nW + ' 個，排成 ' + nW + ' 排、每排 ' + nL + ' 個，所以是 ' + nL + ' × ' + nW + ' ＝ ' + nL * nW + ' 個。不是相加 ' + nL + ' ＋ ' + nW + ' ＝ ' + (nL + nW) + '，畫一張格子圖就看得出來。');
+    }
+    const g = rng.int(2, 8);
+    const [p, q] = coprimePair(rng, 2, 7);
+    const L = g * Math.max(p, q), W = g * Math.min(p, q), M = g * p * q;
+    if (L > 60 || M > 300) retry();
+    const nL = M / L, nW = M / W;
+    return fill('用很多張長 ' + L + ' 公分、寬 ' + W + ' 公分的長方形色紙（方向一樣、不重疊、不剪開），拼出一個最小的正方形。要用幾張色紙？', [String(nL * nW)], '張',
+      '用小的拼成大的，正方形的邊長要是長和寬的「公倍數」；要最小，就是最小公倍數。' + L + ' 和 ' + W + ' 的最小公倍數是 ' + M + ' 公分（不是最大公因數 ' + g + '，那比色紙還小）。長邊方向要 ' + M + ' ÷ ' + L + ' ＝ ' + nL + ' 張，寬邊方向要 ' + M + ' ÷ ' + W + ' ＝ ' + nW + ' 張，一共 ' + nL + ' × ' + nW + ' ＝ ' + nL * nW + ' 張。');
+  },
+
+  /** 從質因數分解的寫法，挑出最小公倍數或最大公因數 */
+  'factor-lcm-primes'(rng) {
+    const ps = rng.shuffle(PRIMES);
+    const common = [ps[0], ...(rng.chance(0.4) ? [rng.pick([2, 3])] : [])];
+    const onlyA = [ps[1], ...(rng.chance(0.3) ? [ps[1]] : [])];
+    const onlyB = [ps[2]];
+    const srt = (arr) => [...arr].sort((a, b) => a - b);
+    const A = srt([...common, ...onlyA]), B = srt([...common, ...onlyB]);
+    const prod = (arr) => arr.reduce((x, y) => x * y, 1);
+    if (prod(A) > 400 || prod(B) > 400) retry();
+    const G = srt(common), M = srt([...common, ...onlyA, ...onlyB]), all = srt([...A, ...B]);
+    const head = '甲 ＝ ' + times(A) + '，乙 ＝ ' + times(B) + '。';
+    if (rng.chance(0.6)) {
+      const short = srt([...common, ...onlyA]);
+      return pick(head + '甲和乙的最小公倍數是哪一個？', choice(rng, times(M), [times(G), times(all), times(short)]),
+        '最小公倍數：兩個數都有的質因數（' + times(G) + '）只乘一次，再乘上甲多出來的 ' + times(onlyA) + ' 和乙多出來的 ' + times(onlyB) + '：' + times(M) + ' ＝ ' + prod(M) + '。不要把兩個數的質因數全部抄下來相乘，那樣共同的 ' + times(G) + ' 會乘兩次。只取共同的 ' + times(G) + ' 是最大公因數，不是最小公倍數。');
+    }
+    const lessG = G.length > 1 ? G.slice(1) : srt([...G, onlyA[0]]);
+    return pick(head + '甲和乙的最大公因數是哪一個？', choice(rng, times(G), [times(M), times(all), times(lessG)]),
+      '最大公因數只取兩個數「都有」的質因數：甲和乙都有 ' + times(G) + '，所以是 ' + prod(G) + '。甲多出來的 ' + times(onlyA) + '、乙多出來的 ' + times(onlyB) + ' 不能算。把全部乘起來的是最小公倍數（' + times(M) + '）。');
+  },
+
+  /** 所有公因數＝最大公因數的所有因數 */
+  'factor-common-all'(rng) {
+    const g = rng.pick([4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20]);
+    const [p, q] = coprimePair(rng, 2, 7);
+    const a = g * p, b = g * q;
+    if (a > 150 || b > 150) retry();
+    const ds = divisors(g);
+    const extra = divisors(a).find((d) => d > 1 && d < a && b % d !== 0 && !ds.includes(d));
+    if (!extra) retry();
+    const j = (arr) => [...arr].sort((x, y) => x - y).join('、');
+    return pick(a + ' 和 ' + b + ' 的所有公因數是哪一組？', choice(rng, j(ds), [j(ds.slice(1)), j(ds.slice(0, -1)), j([...ds, extra])]),
+      '先求最大公因數：' + a + ' 和 ' + b + ' 的最大公因數是 ' + g + '。所有公因數就是 ' + g + ' 的所有因數：' + j(ds) + '。別忘了 1 和 ' + g + ' 自己也算。' + extra + ' 是 ' + a + ' 的因數，可是 ' + b + ' ÷ ' + extra + ' 除不盡，不是公因數。');
+  },
+};
+
+const fracMore = {
+  /** 「裝進去的是幾袋」：有多少 ÷ 一整袋有多少（常顛倒） */
+  'frac-part-whole'(rng) {
+    const small = rng.chance(0.7);
+    const r = small ? properFrac(rng, 9) : improperFrac(rng, 6);
+    if (!small && cmp(r, F(3)) > 0) retry();
+    const W = rng.chance(0.6) ? improperFrac(rng, 8) : F(rng.int(2, 12));
+    const P = mul(r, W);
+    if (P.d > 12 || W.d > 12 || P.n > 120 || W.n > 120 || eq(P, W)) retry();
+    // 倒進一個空袋子的情境只能比一整袋少；比一整份多的用「一共用掉幾桶」
+    const [one, unitW, verb, ask] = small ? rng.pick([
+      ['一個空袋子最多可以裝', '公斤的米', '花花把', '公斤的米全部裝進空袋子裡，裝進去的米是幾袋？'],
+      ['一個空瓶子可以裝', '公升的洗手乳', '哥哥把', '公升的補充包全部倒進空瓶子，倒進去的洗手乳是幾瓶？'],
+      ['一桶沙拉油有', '公升', '媽媽用掉了', '公升，用掉的是幾桶？'],
+    ]) : rng.pick([
+      ['一桶沙拉油有', '公升', '餐廳這個月一共用掉', '公升，用掉的是幾桶？'],
+      ['一袋米有', '公斤', '學校廚房這週一共煮了', '公斤，煮掉的是幾袋？'],
+    ]);
+    const back = div(W, P);
+    return fill(one + ' ' + mixedText(W) + ' ' + unitW + '，' + verb + ' ' + mixedText(P) + ' ' + ask, acceptAll(r), '',
+      '問「是幾袋（幾瓶、幾桶）」，就是看 ' + mixedText(P) + ' 裡面有幾個「一整份」' + mixedText(W) + '：' + mixedText(P) + ' ÷ ' + mixedText(W) + ' ＝ ' + mixedText(r) + '。先估：' + mixedText(P) + (small ? ' 比一整份 ' + mixedText(W) + ' 少，答案要比 1 小' : ' 比一整份 ' + mixedText(W) + ' 多，答案要比 1 大') + '。顛倒寫成 ' + mixedText(W) + ' ÷ ' + mixedText(P) + ' ＝ ' + mixedText(back) + ' 就錯了。');
+  },
+
+  /** 被除數一樣，比兩個除法：除數越大商越小；除數等於 1 的看清楚 */
+  'frac-compare-div'(rng) {
+    const A = rng.chance(0.5) ? improperFrac(rng, 9) : properFrac(rng, 9);
+    const want = rng.pick(['>', '<', '=', '=']);
+    const rand = () => (rng.chance(0.5) ? properFrac(rng, 9) : improperFrac(rng, 6));
+    let B = rand(), Bt, Ct;
+    if (want === '=') {
+      const k = rng.int(2, 4);
+      if (rng.chance(0.5)) { B = F(1); }
+      if (B.d * k > 12 || B.n * k > 40) retry();
+      Bt = mixedText(B); Ct = B.n * k + '/' + B.d * k;
+      if (rng.chance(0.5)) [Bt, Ct] = [Ct, Bt];
+    } else {
+      const C = rand();
+      if (eq(B, C)) retry();
+      const [lo, hi] = cmp(B, C) < 0 ? [B, C] : [C, B];
+      const [b, c] = want === '>' ? [lo, hi] : [hi, lo];
+      Bt = mixedText(b); Ct = mixedText(c);
+    }
+    const opts = [{ text: '大於（＞）', correct: want === '>' }, { text: '小於（＜）', correct: want === '<' }, { text: '等於（＝）', correct: want === '=' }];
+    const tip = want === '='
+      ? Bt + ' 和 ' + Ct + ' 約分後一樣大，被除數也一樣，所以兩邊相等，要選「等於」。像 5/5、3/3 都等於 1，除以 1 商不變。'
+      : '兩邊被除數都是 ' + mixedText(A) + '，只要比除數：除數越大，商越小。' + Bt + (want === '>' ? ' 比 ' : ' 比 ') + Ct + (want === '>' ? ' 小' : ' 大') + '，所以左邊' + (want === '>' ? '比較大' : '比較小') + '。比不出來就通分再比。';
+    return pick('比大小：' + mixedText(A) + ' ÷ ' + Bt + ' ○ ' + mixedText(A) + ' ÷ ' + Ct + '，○ 裡要填什麼？', opts, tip);
+  },
+};
+
+const decMore = {
+  /** 「是喝了幾瓶」：喝掉的 ÷ 一整瓶（常顛倒） */
+  'dec-part-whole'(rng) {
+    const small = rng.chance(0.7);
+    const r = small ? (rng.chance(0.5) ? D(rng.int(1, 9), 1) : D(rng.pick([12, 15, 25, 35, 45, 55, 65, 75, 85, 95, 24, 36, 48, 64, 72]), 2))
+      : D(rng.int(11, 35), 1);
+    if (isInt(r)) retry();
+    const [one, verb, ask, box, lo, hi] = rng.pick(small ? [
+      ['一瓶紅茶是', '公升，姐姐喝了', '公升，是喝了幾瓶？', '瓶', 5, 25],
+      ['一袋麵粉重', '公斤，做麵包用掉', '公斤，是用掉幾袋麵粉？', '袋', 50, 300],
+      ['一捲緞帶長', '公尺，包禮物用掉', '公尺，是用掉幾捲緞帶？', '捲', 20, 200],
+    ] : [
+      ['一瓶紅茶是', '公升，班上同樂會一共喝了', '公升，是喝了幾瓶？', '瓶', 5, 25],
+      ['一袋麵粉重', '公斤，麵包店今天一共用掉', '公斤，是用掉幾袋麵粉？', '袋', 50, 300],
+    ]);
+    const W = D(rng.int(lo, hi), 1);
+    const P = mul(r, W);
+    if (places(P) > 2 || places(W) < 1 || P.n / P.d < 0.1) retry();
+    const back = div(W, P);
+    const backText = dec(back) !== null && places(back) <= 3 ? dec(back) : '約 ' + roundText(back, 2);
+    return fill(one + ' ' + dec(W) + ' ' + verb + ' ' + dec(P) + ' ' + ask, [dec(r)], '',
+      '問「是幾' + box + '」，就是 ' + dec(P) + ' 裡有幾個一整' + box + ' ' + dec(W) + '：' + dec(P) + ' ÷ ' + dec(W) + ' ＝ ' + dec(r) + '。先估：' + dec(P) + (small ? ' 比 ' + dec(W) + ' 少，不到一' + box + '，答案比 1 小' : ' 比 ' + dec(W) + ' 多，超過一' + box + '，答案比 1 大') + '。顛倒成 ' + dec(W) + ' ÷ ' + dec(P) + '（' + backText + '）就錯了。答案的單位是「' + box + '」，不是公升、公斤或公尺。');
+  },
+
+  /** 1 公升多少元、1 公尺重多少、1 公斤長多少：問「每 1 個什麼」，什麼就放在除數 */
+  'dec-unit-rate'(rng) {
+    const v = rng.int(0, 2);
+    if (v === 0) {
+      const X = D(rng.int(12, 95), 1);
+      const u = F(rng.int(12, 95));
+      const Y = mul(u, X);
+      if (!isInt(Y) || Y.n > 3000) retry();
+      return fill(dec(X) + ' 公斤的馬鈴薯賣 ' + dec(Y) + ' 元，1 公斤的馬鈴薯賣多少元？', [dec(u)], '元',
+        '問「1 公斤多少元」，公斤放在除數：元 ÷ 公斤 ＝ ' + dec(Y) + ' ÷ ' + dec(X) + ' ＝ ' + dec(u) + '。估算：' + dec(X) + ' 公斤快要 ' + Math.round(X.n / X.d) + ' 公斤，' + dec(Y) + ' 元分 ' + Math.round(X.n / X.d) + ' 份，一份大約 ' + Math.round(Y.n / Math.round(X.n / X.d)) + ' 元，合理。驗算：' + dec(u) + ' × ' + dec(X) + ' ＝ ' + dec(Y) + '。');
+    }
+    if (v === 1) {
+      const X = D(rng.int(12, 95), 1);
+      const Y = F(rng.int(40, 900));
+      const q = div(Y, X);
+      const k = places(q);
+      if (k >= 0 && k <= 1) retry();
+      return fill('一桶 ' + dec(X) + ' 公升的礦泉水賣 ' + dec(Y) + ' 元，1 公升大約是多少元？（用四捨五入法取到小數第一位）', [roundText(q, 1)], '元',
+        '問「1 公升多少元」：元 ÷ 公升 ＝ ' + dec(Y) + ' ÷ ' + dec(X) + '，除數先變整數：' + dec(mul(Y, F(10))) + ' ÷ ' + dec(mul(X, F(10))) + '，除到小數第二位是 ' + (Math.floor((q.n * 100) / q.d) / 100).toFixed(2) + '…，四捨五入得 ' + roundText(q, 1) + ' 元。顛倒成 ' + dec(X) + ' ÷ ' + dec(Y) + ' 會得到不到 1 元，太便宜，不合理。');
+    }
+    const X = D(rng.int(12, 96), 1);
+    const w = D(rng.int(2, 95), 2);
+    const Y = mul(X, w);
+    if (places(Y) > 2) retry();
+    const perKg = rng.chance(0.5);
+    const ans = perKg ? div(X, Y) : w;
+    if (dec(ans) === null || places(ans) > 2) retry();
+    const head = '一根 ' + dec(X) + ' 公尺長的銅棒重 ' + dec(Y) + ' 公斤。';
+    return fill(head + (perKg ? '1 公斤的銅棒長幾公尺？' : '1 公尺的銅棒重幾公斤？'), [dec(ans)], perKg ? '公尺' : '公斤',
+      perKg
+        ? '問「1 公斤長多少」，公斤放在除數：公尺 ÷ 公斤 ＝ ' + dec(X) + ' ÷ ' + dec(Y) + ' ＝ ' + dec(ans) + '。另一題「1 公尺重多少」才是 ' + dec(Y) + ' ÷ ' + dec(X) + ' ＝ ' + dec(w) + '，兩個不要搞混。驗算：' + dec(ans) + ' × ' + dec(Y) + ' ＝ ' + dec(X) + '。'
+        : '問「1 公尺重多少」，公尺放在除數：公斤 ÷ 公尺 ＝ ' + dec(Y) + ' ÷ ' + dec(X) + ' ＝ ' + dec(w) + '。商的小數點要對齊被除數，寫完估一下：' + dec(X) + ' 公尺才 ' + dec(Y) + ' 公斤，1 公尺一定比 ' + dec(Y) + ' 公斤輕。驗算：' + dec(w) + ' × ' + dec(X) + ' ＝ ' + dec(Y) + '。');
+  },
+
+  /** 比大小：a ÷ b ○ a、a ÷ b ○ a × b、a ÷ b ○ a ÷ c */
+  'dec-compare-sign'(rng) {
+    const a = randDec(rng, 1.2, 99, rng.pick([1, 2]));
+    const form = rng.pick(['self', 'mul', 'div']);
+    const lt = () => randDec(rng, 0.1, 0.94, rng.pick([1, 2]));
+    const gt = () => randDec(rng, 1.05, 9.9, rng.pick([1, 2]));
+    let right, want, tip;
+    if (form === 'div') {
+      const b = rng.chance(0.5) ? lt() : gt();
+      const c = rng.chance(0.5) ? lt() : gt();
+      if (eq(b, c)) retry();
+      want = cmp(b, c) < 0 ? '>' : '<';
+      right = dec(a) + ' ÷ ' + dec(c);
+      tip = '兩邊被除數一樣，除數越大商越小。' + dec(b) + ' 比 ' + dec(c) + (want === '>' ? ' 小，所以左邊比較大。' : ' 大，所以左邊比較小。');
+      return pick('比大小：' + dec(a) + ' ÷ ' + dec(b) + ' ○ ' + right + '，○ 裡要填什麼？', signOpts(want), tip);
+    }
+    const kind = rng.pick(['lt', 'gt', 'one']);
+    const b = kind === 'lt' ? lt() : kind === 'gt' ? gt() : F(1);
+    want = kind === 'lt' ? '>' : kind === 'gt' ? '<' : '=';
+    right = form === 'self' ? dec(a) : dec(a) + ' × ' + dec(b);
+    const rule = kind === 'one' ? '除以 1 和乘以 1 都不變，兩邊一樣大。'
+      : kind === 'lt' ? '除數 ' + dec(b) + ' 比 1 小，除完會變大' + (form === 'mul' ? '；乘以比 1 小的數會變小' : '') + '，所以左邊比較大。'
+        : '除數 ' + dec(b) + ' 比 1 大，除完會變小' + (form === 'mul' ? '；乘以比 1 大的數會變大' : '') + '，所以左邊比較小。';
+    return pick('比大小：' + dec(a) + ' ÷ ' + dec(b) + ' ○ ' + right + '，○ 裡要填什麼？', signOpts(want), '不用算，先看除數和 1 比：' + rule);
+  },
+
+  /** 商的小數點在哪裡：先估，再用乘法驗算 */
+  'dec-point'(rng) {
+    const lessOne = rng.chance(0.5);
+    const q = lessOne ? (rng.chance(0.5) ? D(rng.int(11, 99), 2) : D(rng.int(2, 9), 1)) : (rng.chance(0.5) ? D(rng.int(12, 999), 1) : F(rng.int(12, 150)));
+    if (lessOne && isInt(mul(q, F(10)))) { /* 一位小數也可以 */ }
+    const k = rng.pick([1, 2]);
+    const b = D(rng.int(11, 250), k);
+    if (places(b) !== k) retry();
+    const a = mul(q, b);
+    if (places(a) > 3 || a.n / a.d > 999 || a.n / a.d < 0.1) retry();
+    if (lessOne !== (cmp(a, b) < 0)) retry();
+    const opts = [mul(q, F(10)), mul(q, F(100)), div(q, F(10))].map(dec);
+    const est = cmp(a, b) < 0
+      ? '被除數 ' + dec(a) + ' 比除數 ' + dec(b) + ' 小，商一定比 1 小，是「0. 幾」。'
+      : '被除數 ' + dec(a) + ' 比除數 ' + dec(b) + ' 大，商比 1 大；' + dec(b) + ' 乘以 ' + dec(q) + ' 才會接近 ' + dec(a) + '。';
+    return pick(dec(a) + ' ÷ ' + dec(b) + ' 的商是多少？（先估一估，小數點要放對）', choice(rng, dec(q), opts),
+      est + '驗算：' + dec(q) + ' × ' + dec(b) + ' ＝ ' + dec(a) + '。其他答案只是小數點移錯位，乘回去會是 ' + dec(a) + ' 的 10 倍、100 倍或十分之一。直式要先把除數變整數，商的小數點和移過的被除數小數點對齊。');
+  },
+};
+
+function signOpts(want) {
+  return [{ text: '大於（＞）', correct: want === '>' }, { text: '小於（＜）', correct: want === '<' }, { text: '等於（＝）', correct: want === '=' }];
+}
+
+const KIDS_NAMES = ['皮皮', '丹丹', '多多', '小美', '妮妮', '阿哲', '小安', '采婕'];
+const MIXES = [
+  { f: '紅色油漆', o: '白色油漆', u: '公升', k: [1, 1], more: '顏色最深', less: '顏色最淺', what: '紅色' },
+  { f: '蜂蜜', o: '紅茶', u: '毫升', k: [10, 40], more: '蜂蜜紅茶最甜', less: '蜂蜜紅茶最不甜', what: '蜂蜜' },
+  { f: '柳橙原汁', o: '水', u: '毫升', k: [10, 30], more: '柳橙汁味道最濃', less: '柳橙汁味道最淡', what: '柳橙原汁' },
+  { f: '鮮奶', o: '紅茶', u: '毫升', k: [10, 40], more: '奶茶奶味最濃', less: '奶茶奶味最淡', what: '鮮奶' },
+];
+
+const ratioMore = {
+  /** 用比值比較誰最濃（最深、最甜）；比值的前後項要對好 */
+  'ratio-compare'(rng) {
+    const m = rng.pick(MIXES);
+    const who = rng.shuffle(KIDS_NAMES).slice(0, 3);
+    const rs = [];
+    for (let i = 0; i < 3; i++) rs.push(smallRatio(rng, 9));
+    const vals = rs.map(([p, q]) => F(p, q));
+    if (eq(vals[0], vals[1]) || eq(vals[0], vals[2]) || eq(vals[1], vals[2])) retry();
+    const amt = rs.map(([p, q]) => { const k = rng.int(m.k[0], m.k[1]) * (m.u === '毫升' ? 1 : 1); return [p * k, q * k]; });
+    const fFirst = rng.chance(0.5);
+    const seg = (i) => who[i] + '：' + (fFirst ? m.f + ' ' + amt[i][0] + ' ' + m.u + '、' + m.o + ' ' + amt[i][1] + ' ' + m.u : m.o + ' ' + amt[i][1] + ' ' + m.u + '、' + m.f + ' ' + amt[i][0] + ' ' + m.u);
+    const most = rng.chance(0.6);
+    const order = [0, 1, 2].sort((i, j) => cmp(vals[i], vals[j]));
+    const ans = most ? order[2] : order[0];
+    const show = (i) => who[i] + ' ' + amt[i][0] + ' ÷ ' + amt[i][1] + ' ＝ ' + fracText(vals[i]);
+    return pick('三個人用' + m.f + '和' + m.o + '調配。' + [0, 1, 2].map(seg).join('；') + '。誰調的' + (most ? m.more : m.less) + '？',
+      choice(rng, who[ans], who.filter((_, i) => i !== ans)),
+      '比「' + m.f + ' ÷ ' + m.o + '」的比值，比值越大，' + m.what + '越多：' + [0, 1, 2].map(show).join('，') + '。所以' + (most ? '最大' : '最小') + '的是 ' + who[ans] + '。' + (fFirst ? '' : '注意題目先寫' + m.o + '，比值要用' + m.f + '當前項；') + '如果用「' + m.o + ' ÷ ' + m.f + '」，比值越大反而越淡，大小剛好相反。');
+  },
+
+  /** 相等的比，求 (　) 裡的數；有分數、小數，或後項是 1 */
+  'ratio-missing'(rng) {
+    const [p, q] = smallRatio(rng, 12);
+    const kind = rng.int(0, 3);
+    let s;
+    if (kind === 0) s = F(rng.int(2, 9));
+    else if (kind === 1) s = D(rng.int(2, 25), 1);
+    else if (kind === 2) s = F(rng.int(1, 5), rng.int(2, 9));
+    else s = F(1, q);                      // (　) ： 1 這種
+    if (eq(s, F(1))) retry();
+    const terms = [F(p), F(q), mul(F(p), s), mul(F(q), s)];
+    if (terms.some((t) => t.d > 12 || t.n > 400)) retry();
+    const useDec = kind === 1;
+    const txt = (t) => (useDec && dec(t) !== null && places(t) <= 2 ? dec(t) : mixedText(t));
+    const hole = kind === 3 ? 2 : rng.int(0, 3);
+    const parts = terms.map((t, i) => (i === hole ? '(　)' : txt(t)));
+    const ans = terms[hole];
+    const S = useDec ? dec(s) : fracText(s);
+    const answers = [...new Set([txt(ans), ...acceptAll(ans)])];
+    return fill('(　) 裡的數是多少？ ' + parts[0] + ' ： ' + parts[1] + ' ＝ ' + parts[2] + ' ： ' + parts[3], answers, '',
+      (kind === 3 ? '後項變成 1，前項就是比值：' + p + ' ÷ ' + q + ' ＝ ' + fracText(ans) + '。' : '')
+      + '前項 ' + p + ' 變成 ' + txt(terms[2]) + ' 是乘以 ' + S + '，後項 ' + q + ' 也要乘以 ' + S + '（' + q + ' × ' + S + ' ＝ ' + txt(terms[3]) + '）。前項和後項要乘同一個數，不要一邊乘、一邊除。驗算：兩個比的比值都是 ' + fracText(F(p, q)) + '。');
+  },
+
+  /** 知道一部分，求全部（常只算出另一部分） */
+  'ratio-total'(rng) {
+    const [p, q] = smallRatio(rng, 9);
+    const k = rng.int(2, 20);
+    const [A, B, u, what, ask] = rng.pick([
+      ['男生', '女生', '人', '人數', '全班共有多少人'],
+      ['荔枝果凍', '葡萄果凍', '顆', '數量', '兩種果凍共有幾顆'],
+      ['紅筆', '藍筆', '枝', '數量', '紅筆和藍筆共有幾枝'],
+    ]);
+    const firstKnown = rng.chance(0.5);
+    const X = (firstKnown ? p : q) * k, T = (p + q) * k, other = (firstKnown ? q : p) * k;
+    return fill(A + '和' + B + '的' + what + '比是 ' + ratioShow(p, q) + '，' + (firstKnown ? A : B) + '有 ' + X + ' ' + u + '，' + ask + '？', [String(T)], u,
+      (firstKnown ? A : B) + '是 ' + (firstKnown ? p : q) + ' 份，一份是 ' + X + ' ÷ ' + (firstKnown ? p : q) + ' ＝ ' + k + ' ' + u + '。全部是 ' + p + ' ＋ ' + q + ' ＝ ' + (p + q) + ' 份：' + (p + q) + ' × ' + k + ' ＝ ' + T + ' ' + u + '。題目問「共有」，只算出' + (firstKnown ? B : A) + ' ' + other + ' ' + u + '還沒做完，要再加上 ' + X + '。');
+  },
+};
+
 /** 全部題型：代號 → 產生器 */
-export const MATH_TYPES = { ...factorUnit, ...fracUnit, ...decUnit, ...ratioUnit, ...twoUnit };
+export const MATH_TYPES = { ...factorUnit, ...factorMore, ...fracUnit, ...fracMore, ...decUnit, ...decMore, ...ratioUnit, ...ratioMore, ...twoUnit };

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createRng } from '../engine/rng.js';
-import { F, div, mul, sub, add, fromDecimal, eq, gcd, roundText } from '../engine/frac.js';
+import { F, div, mul, sub, add, fromDecimal, eq, gcd, lcm, roundText } from '../engine/frac.js';
 import { generateQuestion, checkQuestion, questionKey, typeNames, parseMake, makeCount, materialize, mixLevel, hasType } from '../engine/generate.js';
 import { isCorrect } from '../engine/quiz.js';
 import { loadLevels } from '../engine/levels.js';
@@ -43,7 +43,46 @@ const RECHECK = {
   'ratio-value': (q, [a, b]) => F(Number(a), Number(b)),
   'two-base': (q, n) => div(val(n[1]), val(n[0])),           // A 是 B 的 k 倍，A＝… → B ＝ A ÷ k
   'two-sum': (q, n) => div(val(n[1]), add(val(n[0]), F(1))),
+  // 2026-11-25 新增
+  'factor-square': (q, [a, b]) => {
+    const A = Number(a), B = Number(b), g = gcd(A, B), L = lcm(A, B);
+    if (q.text.includes('最長是')) return F(g);
+    if (q.text.includes('拼出')) return F((L / A) * (L / B));
+    return F((A / g) * (B / g));
+  },
+  'frac-part-whole': (q, [w, p]) => div(val(p), val(w)),
+  'dec-part-whole': (q, [w, p]) => div(val(p), val(w)),
+  'dec-unit-rate': (q, [x, y]) => {
+    if (q.text.includes('四捨五入')) return null; // 另外檢查
+    return q.text.includes('1 公斤的銅棒長') ? div(val(x), val(y)) : div(val(y), val(x));
+  },
+  'ratio-missing': (q) => {
+    const [L, R] = q.text.split('？')[1].split('＝').map((side) => side.split('：').map((t) => t.trim()));
+    const t = [...L, ...R];
+    const h = t.indexOf('(　)');
+    const v = t.map((x) => (x === '(　)' ? null : val(x)));
+    // a:b = c:d → a×d = b×c
+    if (h === 0) return div(mul(v[1], v[2]), v[3]);
+    if (h === 1) return div(mul(v[0], v[3]), v[2]);
+    if (h === 2) return div(mul(v[0], v[3]), v[1]);
+    return div(mul(v[1], v[2]), v[0]);
+  },
+  'ratio-total': (q, [p, r, x]) => {
+    const m = q.text.match(/^(.+?)和(.+?)的(?:人數|數量)比是.*?，(.+?)有 /);
+    const part = m[3] === m[1] ? Number(p) : Number(r);
+    return F(Number(x) / part * (Number(p) + Number(r)));
+  },
 };
+
+/** 「x ÷ y」「x × y」或一個數 → 分數 */
+const evalSide = (s) => {
+  s = s.trim();
+  if (s.includes(' ÷ ')) { const [x, y] = s.split(' ÷ '); return div(val(x), val(y)); }
+  if (s.includes(' × ')) { const [x, y] = s.split(' × '); return mul(val(x), val(y)); }
+  return val(s);
+};
+const signOf = (L, R) => { const d = L.n * R.d - R.n * L.d; return d > 0 ? '大於（＞）' : d < 0 ? '小於（＜）' : '等於（＝）'; };
+const prodOf = (s) => s.split(' × ').map(Number).reduce((a, b) => a * b, 1);
 
 // 題目和答案的整數不超過 5000（金額、人數）；選項可以大一點（例如移錯小數點的錯誤選項）
 const limits = (q) => {
@@ -72,13 +111,17 @@ for (const type of typeNames()) {
         // 小孩照標準答案打，一定要判對
         for (const a of q.answers) assert.ok(isCorrect(q, a), `標準答案判錯：${a}｜${q.text}`);
         const re = RECHECK[type];
-        if (re) {
-          const want = re(q, nums(q.text));
+        const want = re ? re(q, nums(q.text)) : null;
+        if (want) {
           assert.ok(answerIs(q, want), `重算不一致：${q.text}\n  產生器 ${q.answers.join('|')}，重算 ${want.n}/${want.d}`);
         }
         if (type === 'dec-round') {
           const [a, b] = nums(q.text);
           assert.equal(q.answers[0], roundText(div(val(a), val(b)), 2), q.text);
+        }
+        if (type === 'dec-unit-rate' && q.text.includes('四捨五入')) {
+          const [x, y] = nums(q.text);
+          assert.equal(q.answers[0], roundText(div(val(y), val(x)), 1), q.text);
         }
         if (type === 'ratio-simplify-int') {
           const [a, b] = nums(q.text).map(Number);
@@ -111,6 +154,42 @@ for (const type of typeNames()) {
           const s = qv.n * x.d - x.n * qv.d;
           assert.equal(o.correct, bigger ? s > 0 : s < 0, q.text + ' ' + o.text);
         }
+      }
+      if (type === 'frac-compare-div' || type === 'dec-compare-sign') {
+        const m = q.text.match(/：(.+) ○ (.+)，○/);
+        assert.equal(q.options.find((o) => o.correct).text, signOf(evalSide(m[1]), evalSide(m[2])), q.text);
+      }
+      if (type === 'dec-point') {
+        const [a, b] = q.text.split(' 的商')[0].split(' ÷ ').map(val);
+        for (const o of q.options) assert.equal(o.correct, eq(val(o.text), div(a, b)), q.text + ' ' + o.text);
+      }
+      if (type === 'factor-lcm-primes') {
+        const m = q.text.match(/甲 ＝ (.+?)，乙 ＝ (.+?)。/);
+        const A = prodOf(m[1]), B = prodOf(m[2]);
+        const want = q.text.includes('最小公倍數') ? lcm(A, B) : gcd(A, B);
+        for (const o of q.options) assert.equal(o.correct, prodOf(o.text) === want, q.text + ' ' + o.text);
+      }
+      if (type === 'factor-common-all') {
+        const [a, b] = nums(q.text).map(Number);
+        const g = gcd(a, b);
+        const all = []; for (let i = 1; i <= g; i++) if (g % i === 0) all.push(i);
+        for (const o of q.options) assert.equal(o.correct, o.text === all.join('、'), q.text + ' ' + o.text);
+      }
+      if (type === 'ratio-compare') {
+        const most = /最(深|甜|濃)？$/.test(q.text);
+        const fName = q.text.match(/^三個人用(.+?)和/)[1];
+        const score = {};
+        for (const seg of q.text.split('。')[1].split('；')) {
+          const [who, rest] = seg.split('：');
+          const amounts = {};
+          for (const part of rest.split('、')) { const m = part.match(/^(.+) (\d+) /); amounts[m[1]] = Number(m[2]); }
+          const f = amounts[fName];
+          const o = Object.entries(amounts).find(([k]) => k !== fName)[1];
+          score[who] = F(f, o);
+        }
+        const names = Object.keys(score).sort((x, y) => { const a = score[x], b = score[y]; return a.n * b.d - b.n * a.d; });
+        const want = most ? names[2] : names[0];
+        assert.equal(q.options.find((o) => o.correct).text, want, q.text);
       }
       if (type === 'dec-compare-1') {
         for (const o of q.options) {

@@ -1,0 +1,40 @@
+/* games/quiz-race/race.css — 搶答賽畫面。顏色跟著公主代表色（--main / --soft / --deep）。
+   共用 world/quiz.css 的 .quiz-bar、.quiz-card、.opts、.opt、.clock、.score、.stamp、.actions、.review。 */
+#game { position: fixed; inset: 0; overflow-y: auto; background: linear-gradient(var(--soft), var(--paper) 240px); -webkit-overflow-scrolling: touch; }
+.race-wrap { max-width: 760px; margin: 0 auto; padding: 18px 16px 56px; display: flex; flex-direction: column; gap: 16px; }
+.race-wrap > .side { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.race-rules { margin: 0 0 10px; padding-left: 1.3em; font-size: 18px; line-height: 1.8; }
+.race-best { font-weight: 700; color: var(--deep); }
+.btn.race-go { min-width: 160px; min-height: 56px; font-size: 20px; }
+.race-count { align-self: center; margin-top: 12vh; font: 700 140px/1 "LXGW WenKai TC", serif; color: var(--deep); font-variant-numeric: tabular-nums; }
+
+.race-bar { position: sticky; top: 0; z-index: 1; padding: 6px 0; background: linear-gradient(var(--soft) 70%, transparent); }
+.race-stats { display: flex; align-items: baseline; gap: 14px; }
+.race-score { font: 700 30px "LXGW WenKai TC", serif; color: var(--deep); font-variant-numeric: tabular-nums; }
+.race-streak { font-weight: 700; color: #c2410c; }
+.race-opts .opt { min-height: 64px; font-size: 20px; }
+.race-opts .opt:disabled { cursor: default; opacity: .75; }
+.race-opts .opt.right { opacity: 1; border-color: #1c8757; background: #dff5e9; font-weight: 700; }
+.race-opts .opt.wrong { opacity: 1; border-color: #d3243b; background: #ffe4e8; text-decoration: line-through; }
+.race-feedback { min-height: 44px; margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.race-feedback p { margin: 0; font-size: 18px; }
+.race-ok { color: #1c8757; font-weight: 700; }
+.race-bad b { color: #1c8757; }
+.race-cut { margin-left: 10px; padding: 2px 10px; border-radius: 999px; background: #ffe4e8; color: #d3243b; font-weight: 700; font-size: 15px; }
+
+.race-timeup { margin: 0 0 6px; font: 700 22px "LXGW WenKai TC", serif; color: var(--deep); }
+.race-review-title { margin: 6px 0 0; font: 700 20px "LXGW WenKai TC", serif; }
+.race-allright { font-weight: 700; color: #1c8757; }
+
+/* 遊戲帳篷清單 */
+.tent-box { margin: 6px 0 12px; padding: 12px 14px; border-radius: 16px; background: var(--paper); }
+.tent-box p { margin: 4px 0; }
+.tent-box .btn { margin-top: 8px; }
+.in-pool { margin: 8px 0 0; font-size: 14px; color: #1c8757; font-weight: 700; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .race-ok, .race-cut { animation: race-pop .3s cubic-bezier(.2, 1.4, .4, 1) both; }
+  @keyframes race-pop { from { transform: scale(1.6); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+@media (max-width: 480px) { .race-count { font-size: 110px; } .race-opts .opt { font-size: 18px; } }

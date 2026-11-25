@@ -54,6 +54,37 @@ export function createHud(root, text) {
     return [el('p', 'lock', msg), go];
   }
 
+  /** 遊戲帳篷上方：規則、題庫有幾關、最高紀錄、開始鈕 */
+  function tentBlock(tent) {
+    const T = text.race;
+    const box = el('section', 'tent-box');
+    box.append(el('p', 'rule-line muted', tent.ruleText));
+    if (!tent.poolCount) { box.append(el('p', 'lock', T.poolEmpty)); return box; }
+    box.append(el('p', '', fill(T.poolLine, { n: tent.poolCount })));
+    if (tent.best) box.append(el('p', 'best won', fill(T.bestLine, { n: tent.best.best })));
+    const go = el('button', 'btn race-go', T.enter);
+    go.type = 'button';
+    go.addEventListener('click', () => tent.onStart());
+    box.append(go);
+    return box;
+  }
+
+  /** 遊戲帳篷清單裡的一關：在不在題庫裡；不在的話要先做什麼 */
+  function tentRow(l, extra) {
+    const T = text.race;
+    const st = extra.tent.state(l);
+    if (st.inPool) return [el('p', 'in-pool', T.inPool)];
+    if (st.reason === 'noChoice') return [el('p', 'muted', T.noChoice)];
+    const best = extra.best ? extra.best(l) : null;
+    const msg = st.reason === 'needPerfect'
+      ? (best ? fill(T.needPerfect, { n: best.best, total: l.questions.length }) : T.needPerfectNone)
+      : T.needQuiz;
+    const go = el('button', 'btn ghost', T.goQuiz);
+    go.type = 'button';
+    go.addEventListener('click', () => extra.onStart(l));
+    return [el('p', 'lock', msg), go];
+  }
+
   /** 綜合練習：勾單元（可以複選）＋題數按鈕 */
   function mixBlock(mix) {
     const T = text.mix;
@@ -130,12 +161,12 @@ export function createHud(root, text) {
 
     /**
      * 點到建築：說明＋這座島的關卡。
-     * extra：{ choiceCount, minutes(level), best(level), onStart(level) }
+     * extra：{ minutes(level), best(level), onStart(level), mix, house, tent }
      */
     showBuilding(island, kind, building, info, extra, onBack) {
       const nodes = [el('p', 'muted', island.name), el('h2', '', building.label)];
       nodes.push(el('p', '', text[kind + 'Body'] || ''));
-      if (kind === 'tent') nodes.push(el('p', 'tag', fill(text.tentPool, { n: extra.choiceCount })));
+      if (kind === 'tent' && extra.tent) nodes.push(tentBlock(extra.tent));
       if (kind === 'house' && extra.house) nodes.push(el('p', 'rule-line muted', extra.house.ruleText));
       for (const g of info.groups) {
         nodes.push(el('h3', '', g.title));
@@ -164,6 +195,7 @@ export function createHud(root, text) {
             }
           }
           if (kind === 'house' && extra.house) li.append(...houseRow(l, extra));
+          if (kind === 'tent' && extra.tent) li.append(...tentRow(l, extra));
           ul.append(li);
         }
         nodes.push(ul);

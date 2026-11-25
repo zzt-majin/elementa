@@ -1,0 +1,15 @@
+{
+  "_說明": "遊戲帳篷（搶答賽）的參數。seconds、wrongPenalty、pool 是還沒登入、或試算表「設定」沒填時用的預設；登入後照試算表「設定」的「搶答賽秒數」「搶答答錯扣秒」「搶答賽題目」。pool：always＝一開始就把這座島所有關卡放進題庫、afterQuiz＝在測驗塔寫過的關卡、afterPerfect＝全對過的關卡。sheetValues 是試算表「搶答賽題目」那一格可以填的字。secondsRange、penaltyRange 是秒數和扣秒能接受的範圍（和後台一樣）。rightPauseMs、wrongPauseMs 是答對、答錯後停多久才出下一題（這段時間時鐘暫停，不算進比賽時間）。readySeconds 是開始前的 3、2、1 倒數（0 就不倒數）。levelPrefix 是存成績用的代號開頭，後面接島的代號，例如 game-math。",
+  "seconds": 60,
+  "wrongPenalty": 3,
+  "pool": "afterQuiz",
+  "sheetValues": { "一開始": "always", "測驗後": "afterQuiz", "全對後": "afterPerfect" },
+  "secondsRange": [30, 300],
+  "penaltyRange": [0, 10],
+  "rightPauseMs": 500,
+  "wrongPauseMs": 2500,
+  "readySeconds": 3,
+  "lowTimeSeconds": 10,
+  "tickMs": 100,
+  "levelPrefix": "game-"
+}

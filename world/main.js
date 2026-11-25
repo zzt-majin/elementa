@@ -13,6 +13,8 @@ import { createQuizUI } from './quiz-ui.js';
 import { createCardsUI } from './cards-ui.js';
 import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
 import { materialize, mixLevel } from '../engine/generate.js';
+import { raceSettings, rulesFor, raceId, poolState, buildPool, createDrawer, raceSummary, shouldRecord } from '../games/quiz-race/race.js';
+import { createRaceUI } from '../games/quiz-race/race-ui.js';
 
 const store = {
   get(k) { try { return localStorage.getItem('elementa.' + k); } catch { return null; } },
@@ -34,19 +36,23 @@ async function getJSON(url) {
  *   onKidChange(kid)：切換小孩時呼叫。
  *   onResult(summary, info)：每次交卷後呼叫。summary 是 resultSummary() 的精簡紀錄，info 是 progress.record() 的回傳。
  *   settingsOf(kid)：家長在試算表「設定」填的規則（登入模組提供）；沒有就用 config 的預設。
+ *     學習屋用 cards，遊戲帳篷用 gameSeconds、wrongPenalty、gamePool。
+ *   搶答賽結束也會呼叫 onResult，summary.kind 是 'game'，關卡代號是 game-<島的代號>。
  */
-export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
-  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig] = await Promise.all([
+export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
+  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig] = await Promise.all([
     ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
     getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
     getJSON(configPath + 'cards.json').catch(() => ({})), // 沒有 cards.json 就用引擎預設
     getJSON(configPath + 'mix.json').catch(() => ({})),
+    getJSON(configPath + 'game.json').catch(() => ({})), // 沒有 game.json 就用搶答賽預設
   ]);
   const presets = (Array.isArray(mixConfig?.presets) ? mixConfig.presets : [])
     .map((p) => ({ count: Math.round(Number(p.count)), minutes: Number(p.minutes) }))
     .filter((p) => p.count >= 1 && p.count <= 60 && p.minutes > 0);
   const settings = quizSettings(quizConfig);
   const cardConf = cardSettings(cardsConfig);
+  const raceConf = raceSettings(gameConfig);
   const hud = createHud(hudRoot, text);
   const loading = hudRoot.querySelector('#loading');
   loading.textContent = text.loading;
@@ -134,6 +140,21 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, configP
     return ruleFor(sheet, cardConf);
   };
 
+  // 遊戲帳篷（搶答賽）：秒數、扣秒、題目來源照試算表「設定」（hooks.settingsOf），沒有就照 config/game.json
+  const raceUI = gameRoot ? createRaceUI(gameRoot, {
+    text,
+    settings: raceConf,
+    onOpenChange: overlayChange,
+    onClose() { if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind); },
+    onResult: (result) => raceDone(result),
+  }) : null;
+  let raceMeta = null; // 正在比的這一場：哪個小孩、哪座島
+  const raceRules = () => {
+    let sheet = null;
+    try { sheet = hooks.settingsOf?.(kid) || null; } catch (err) { console.error(err); }
+    return rulesFor(sheet, raceConf);
+  };
+
   function rebuild() {
     islandsGroup.clear();
     for (const def of subjects.islands) {
@@ -174,16 +195,16 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, configP
     lastBuilding = { code, kind };
     const g = groupOf(code);
     rig.focus(g.position, (def.size || 1) * 0.8);
-    const choiceCount = info.groups.flatMap((x) => x.items).reduce((s, l) => s + l.questions.filter((q) => q.type === '選擇').length, 0);
     hud.showBuilding(def, kind, subjects.buildings[kind], info, {
-      choiceCount,
       minutes: minutesOf,
       mmss,
       best: (l) => progress.get(l.meta.kid, l.meta.id),
       // 從學習屋去寫測驗：交卷後回到學習屋，剛打開的學習卡馬上看得到
-      onStart: (l) => startQuiz(l, { backLabel: kind === 'house' ? text.cards.leave : '' }),
+      // 從遊戲帳篷去寫測驗：交卷後回到帳篷，這一關的選擇題馬上放進題庫
+      onStart: (l) => startQuiz(l, { backLabel: kind === 'house' ? text.cards.leave : kind === 'tent' ? text.race.leave : '' }),
       mix: kind === 'tower' && presets.length ? mixExtra(def, info) : null,
       house: kind === 'house' && cardsUI ? houseExtra(code) : null,
+      tent: kind === 'tent' && raceUI ? tentExtra(def, info) : null,
     }, () => openIsland(code));
   }
 
@@ -199,6 +220,45 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, configP
         else openBuilding(code, 'house');
       },
     };
+  }
+
+  /** 遊戲帳篷：規則、題庫、最高紀錄、開始 */
+  function tentExtra(def, info) {
+    const T = text.race;
+    const rules = raceRules();
+    const all = info.groups.flatMap((g) => g.items);
+    const recordOf = (l) => progress.get(l.meta.kid, l.meta.id);
+    const id = raceId(def.code, raceConf);
+    const pool = buildPool(all, recordOf, rules.pool);
+    return {
+      ruleText: fill(T.tentRules, { s: rules.seconds, p: rules.penalty, pool: T.poolNames[rules.pool] || rules.pool }) + (rules.from === 'sheet' ? T.fromSheet : T.fromDefault),
+      poolCount: pool.levels.length,
+      best: progress.get(kid, id),
+      state: (l) => poolState(l, recordOf(l), rules.pool),
+      onStart() {
+        // 按下去那一刻再算一次，避免清單畫好後成績或設定變了
+        const r = raceRules();
+        const p = buildPool(all, recordOf, r.pool);
+        if (!p.sources.length) { openBuilding(def.code, 'tent'); return; }
+        raceMeta = { id, kid, subject: def.subject, grade: p.levels[0].meta.grade || '', name: fill(T.levelName, { island: def.name }), source: T.title };
+        raceUI.open({
+          title: fill(T.screenTitle, { island: def.name }),
+          rules: r,
+          poolLevels: p.levels.length,
+          best: () => progress.get(raceMeta.kid, id),
+          makeDrawer: () => createDrawer(p.sources, { cfgOf: (s) => genCfg[s] || {} }),
+        });
+      },
+    };
+  }
+
+  /** 一場搶答賽結束：記最高紀錄（progress 的 game-<島>），再交給 hooks（雲端、日後的歐巴幣） */
+  function raceDone(result) {
+    const m = raceMeta;
+    if (!m || !shouldRecord(result)) return { saved: false };
+    const info = progress.record(m.kid, m.id, result);
+    try { hooks.onResult?.(raceSummary(result, m), info); } catch (err) { console.error(err); }
+    return info;
   }
 
   // ---------- 出題 ----------
@@ -328,7 +388,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, configP
     kids,
     kid: () => kid,
     refresh() {
-      if (quizRoot.hidden === false || cardsUI?.isOpen) return; // 作答、看卡中不動，關掉後會自己重畫
+      if (quizRoot.hidden === false || cardsUI?.isOpen || raceUI?.isOpen) return; // 作答、看卡中不動，關掉後會自己重畫
       if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind);
     },
   };
@@ -350,7 +410,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, configP
     view.render();
   });
 
-  return { ...api, openIsland, backToAll, quiz, cards: cardsUI };
+  return { ...api, openIsland, backToAll, quiz, cards: cardsUI, race: raceUI };
 }
 
 function webglOK() {

@@ -107,6 +107,9 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
     /** 交卷後呼叫，summary 是 resultSummary() 的格式 */
     enqueue(summary) {
       if (!enabled || !/^[a-z0-9-]{1,60}$/.test(summary.level || '')) return false;
+      // 搶答賽（kind: 'game'）的代號一定是 game- 開頭，後台也這樣檢查
+      const game = summary.kind === 'game';
+      if (game !== /^game-/.test(summary.level)) return false;
       const item = {
         t: now() + '-' + Math.random().toString(36).slice(2, 8),
         kid: summary.kid,
@@ -116,7 +119,8 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
         total: summary.total,
         used: summary.used,
         timeUp: !!summary.timeUp,
-        retry: !!summary.retry,
+        retry: !game && !!summary.retry,
+        ...(game ? { kind: 'game' } : {}),
       };
       store.set(QUE, [...queue(), item].slice(-settings.queueMax));
       api.flush();
