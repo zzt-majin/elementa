@@ -1,0 +1,41 @@
+/* world/cards.css — 學習屋的看卡畫面。顏色跟著公主代表色（--main / --soft / --deep）。
+   共用 quiz.css 的 .quiz-bar、.quiz-nav、.quiz-card、.actions。 */
+#cards { position: fixed; inset: 0; overflow-y: auto; background: linear-gradient(var(--soft), var(--paper) 240px); -webkit-overflow-scrolling: touch; }
+.cards-wrap { max-width: 760px; margin: 0 auto; padding: 18px 16px 56px; display: flex; flex-direction: column; gap: 16px; }
+.cards-wrap > .side { display: flex; flex-wrap: wrap; gap: 10px; }
+.card-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.card-dots span { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid var(--soft); }
+.card-dots span.known { background: #1c8757; border-color: #1c8757; }
+.card-dots span.again { background: #ffb547; border-color: #ffb547; }
+.card-dots span.cur { box-shadow: 0 0 0 3px var(--deep); }
+
+.study-card { display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 100%; min-height: 300px; padding: 22px 22px 16px; text-align: left; border: 0; border-radius: 24px; background: #fff; color: var(--ink); font: 16px/1.6 "Noto Sans TC", sans-serif; cursor: pointer; box-shadow: 0 6px 0 var(--soft), 0 14px 30px rgba(90, 40, 70, .12); }
+.study-card.back { background: #fffdf4; box-shadow: 0 6px 0 #ffe3a6, 0 14px 30px rgba(90, 40, 70, .12); }
+.study-card:focus-visible { outline: 3px solid var(--deep); outline-offset: 3px; }
+.face-label { align-self: flex-start; padding: 2px 12px; border-radius: 999px; background: var(--soft); color: var(--deep); font-weight: 700; font-size: 14px; }
+.study-card.back .face-label { background: #ffe3a6; color: #8a5a00; }
+.study-card .prompt { font-size: 21px; font-weight: 500; line-height: 1.65; white-space: pre-line; font-variant-numeric: tabular-nums; }
+.card-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.card-opt { padding: 8px 12px; border: 2px solid var(--soft); border-radius: 14px; font-size: 17px; font-variant-numeric: tabular-nums; }
+.card-answer { font: 700 30px/1.35 "LXGW WenKai TC", serif; color: #1c8757; font-variant-numeric: tabular-nums; white-space: pre-line; }
+.card-tip { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: 14px; background: var(--paper); font-size: 17px; white-space: pre-line; }
+.card-tip strong { font-family: "LXGW WenKai TC", serif; color: var(--deep); }
+.flip-hint { margin-top: auto; align-self: flex-end; font-size: 13px; opacity: .6; }
+.card-judge { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.card-judge:empty { display: none; }
+.card-judge .btn { min-height: 52px; font-size: 17px; }
+.card-judge .btn[aria-pressed="true"] { outline: 3px solid var(--deep); outline-offset: 2px; }
+.keys { margin: 0; }
+@media (hover: none) { .keys { display: none; } }
+.cards-done h3 { margin: 0 0 8px; font: 700 24px "LXGW WenKai TC", serif; }
+.cards-done .won { color: #1c8757; font-weight: 700; }
+
+/* 學習屋清單 */
+.rule-line { margin: 0 0 4px; font-size: 14px; }
+.lock { margin: 8px 0 0; font-size: 14px; padding: 8px 10px; border-radius: 10px; background: var(--paper); border: 1px dashed var(--main); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .study-card { animation: card-in .28s ease-out both; }
+  @keyframes card-in { from { transform: perspective(900px) rotateY(-14deg) scale(.98); opacity: .4; } to { transform: none; opacity: 1; } }
+}
+@media (max-width: 480px) { .card-opts { grid-template-columns: 1fr; } .study-card .prompt { font-size: 19px; } }

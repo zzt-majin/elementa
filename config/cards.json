@@ -1,0 +1,7 @@
+{
+  "_說明": "學習屋（學習卡）的參數。defaultRule 是還沒登入、或試算表「設定」沒填時用的開放時機：always＝一開始、afterQuiz＝測驗後、afterPerfect＝全對後。sheetValues 是試算表「學習卡開放」那一格可以填的字，各對應到哪一種。showOptions：選擇題的卡片正面要不要列出選項。shuffle：每一輪是否預設打亂順序。",
+  "defaultRule": "afterQuiz",
+  "sheetValues": { "一開始": "always", "測驗後": "afterQuiz", "全對後": "afterPerfect" },
+  "showOptions": true,
+  "shuffle": false
+}

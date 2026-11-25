@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseLevel, loadLevels } from '../engine/levels.js';
+import { materialize } from '../engine/generate.js';
 import {
   quizSettings, normalizeAnswer, isCorrect, createSession, setAnswer, goTo, blankCount,
   secondsLeft, grade, wrongIndices, resultSummary, createCountdown, mmss, levelLimitSeconds,
@@ -184,7 +185,10 @@ test('精簡紀錄格式和清單版作答紀錄一致', () => {
 
 // ---------- 實際關卡 ----------
 const root = fileURLToPath(new URL('../', import.meta.url));
-const { levels, errors } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
+const { levels: raw, errors } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
+// 有 make 的關卡先出一份題目（每次測驗都會出新的；這裡用固定種子方便重現）
+const genCfg = JSON.parse(await readFile(root + 'config/generators/math.json', 'utf8'));
+const levels = raw.map((l, i) => materialize(l, { seed: 1000 + i, cfg: genCfg }));
 test('關卡檔都讀得到', () => assert.deepEqual(errors, []));
 for (const l of levels) {
   if (!l.questions.length) continue;

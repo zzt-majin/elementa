@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="world/world.css">
 <link rel="stylesheet" href="world/quiz.css">
 <link rel="stylesheet" href="world/login.css">
+<link rel="stylesheet" href="world/cards.css">
 <!-- three.js（MIT）固定版本，從 cdnjs 載入 -->
 <script type="importmap">
 { "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.182.0/three.module.min.js" } }
@@ -30,6 +31,7 @@
   <button id="start" class="start" type="button" hidden></button>
 </div>
 <main id="quiz" hidden></main>
+<main id="cards" hidden></main>
 <script type="module">
   import { startWorld } from './world/main.js';
   import { createAccount } from './world/account.js';
@@ -39,6 +41,7 @@
     canvas: document.getElementById('world'),
     hudRoot: document.getElementById('hud'),
     quizRoot: document.getElementById('quiz'),
+    cardsRoot: document.getElementById('cards'),
     configPath: 'config/',
     levelsPath: 'content/levels/',
     hooks: account.hooks,

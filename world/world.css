@@ -53,3 +53,13 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
   .hint { white-space: normal; text-align: center; width: calc(100% - 32px); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* 綜合練習 */
+.mix { margin-top: 18px; padding: 14px; border-radius: 16px; background: #fff; border: 2px solid var(--main); }
+.mix h3 { margin-top: 0; font: 700 20px "LXGW WenKai TC", serif; }
+.mix-units { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.mix-unit { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 12px; border: 2px solid var(--soft); background: var(--paper); cursor: pointer; font-size: 15px; }
+.mix-unit input { width: 20px; height: 20px; accent-color: var(--deep); }
+.mix-unit:has(input:checked) { border-color: var(--main); background: var(--soft); font-weight: 700; }
+.mix-presets { display: grid; gap: 8px; }
+.mix-preset { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.mix-preset .btn { margin-top: 0; min-height: 44px; }

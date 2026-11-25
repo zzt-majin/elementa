@@ -10,11 +10,16 @@ import { buildIsland, whatWasHit } from './islands.js';
 import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
 import { createQuizUI } from './quiz-ui.js';
+import { createCardsUI } from './cards-ui.js';
+import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
+import { materialize, mixLevel } from '../engine/generate.js';
 
 const store = {
   get(k) { try { return localStorage.getItem('elementa.' + k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem('elementa.' + k, v); } catch { /* 沒有也沒關係 */ } },
 };
+
+const fill = (s, vals) => String(s ?? '').replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
 
 async function getJSON(url) {
   const res = await fetch(url, { cache: 'no-cache' });
@@ -28,13 +33,20 @@ async function getJSON(url) {
  *     refresh()：成績從別處合併進來後呼叫，打開中的測驗塔清單會重畫。
  *   onKidChange(kid)：切換小孩時呼叫。
  *   onResult(summary, info)：每次交卷後呼叫。summary 是 resultSummary() 的精簡紀錄，info 是 progress.record() 的回傳。
+ *   settingsOf(kid)：家長在試算表「設定」填的規則（登入模組提供）；沒有就用 config 的預設。
  */
-export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
-  const [subjects, theme, world, text, quizConfig] = await Promise.all([
+export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
+  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig] = await Promise.all([
     ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
     getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
+    getJSON(configPath + 'cards.json').catch(() => ({})), // 沒有 cards.json 就用引擎預設
+    getJSON(configPath + 'mix.json').catch(() => ({})),
   ]);
+  const presets = (Array.isArray(mixConfig?.presets) ? mixConfig.presets : [])
+    .map((p) => ({ count: Math.round(Number(p.count)), minutes: Number(p.minutes) }))
+    .filter((p) => p.count >= 1 && p.count <= 60 && p.minutes > 0);
   const settings = quizSettings(quizConfig);
+  const cardConf = cardSettings(cardsConfig);
   const hud = createHud(hudRoot, text);
   const loading = hudRoot.querySelector('#loading');
   loading.textContent = text.loading;
@@ -42,13 +54,24 @@ export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'conf
   if (!webglOK()) { loading.textContent = text.noWebGL; return; }
 
   let levels = [];
+  const loadErrors = [];
+  const genCfg = {};
   try {
     const r = await loadLevels(levelsPath);
-    levels = r.levels;
-    hud.showErrors(r.errors);
+    loadErrors.push(...r.errors);
+    // 出題模組的數字範圍：config/generators/<島的代號>.json（例如 math.json），只讀有出題關卡的科目
+    const need = new Set(r.levels.filter((l) => l.meta.make).map((l) => l.meta.subject));
+    await Promise.all(subjects.islands.filter((i) => need.has(i.subject)).map(async (i) => {
+      genCfg[i.subject] = await getJSON(configPath + 'generators/' + i.code + '.json').catch(() => ({}));
+    }));
+    // 有 make 的關卡先出一份題目，題數、學習卡、搶答賽題庫才算得出來；每次開始測驗會再出新的
+    for (const l of r.levels) {
+      try { levels.push(materialize(l, { cfg: genCfg[l.meta.subject] })); } catch (err) { loadErrors.push({ file: l.file, message: err.message }); }
+    }
   } catch (err) {
-    hud.showErrors([{ file: 'index.json', message: err.message }]);
+    loadErrors.push({ file: 'index.json', message: err.message });
   }
+  hud.showErrors(loadErrors);
 
   // 等字型載好再畫島名，避免先出現系統字
   await Promise.race([
@@ -78,14 +101,16 @@ export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'conf
   const minutesOf = (l) => timeLimitMinutes(l, settings.minutesPerQuestion);
 
   let paused = false;
+  const overlayChange = (open) => {
+    paused = open; // 作答、看卡時 3D 場景不畫，平板比較省電
+    hudRoot.hidden = open;
+    canvas.hidden = open;
+  };
   const quiz = createQuizUI(quizRoot, {
     text,
     settings,
-    onOpenChange(open) {
-      paused = open; // 作答時 3D 場景不畫，平板比較省電
-      hudRoot.hidden = open;
-      canvas.hidden = open;
-    },
+    refresh: (l) => freshen(l), // 「整關再挑戰」出新題目
+    onOpenChange: overlayChange,
     onResult(result, level) {
       const info = progress.record(level.meta.kid, level.meta.id, result);
       try { hooks.onResult?.(resultSummary(result, level), info); } catch (err) { console.error(err); }
@@ -95,6 +120,19 @@ export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'conf
       if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind);
     },
   });
+
+  // 學習屋：開放時機照試算表「設定」（hooks.settingsOf），沒有就照 config/cards.json
+  const cardsUI = cardsRoot ? createCardsUI(cardsRoot, {
+    text,
+    settings: cardConf,
+    onOpenChange: overlayChange,
+    onClose() { if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind); },
+  }) : null;
+  const cardRule = () => {
+    let sheet = null;
+    try { sheet = hooks.settingsOf?.(kid) || null; } catch (err) { console.error(err); }
+    return ruleFor(sheet, cardConf);
+  };
 
   function rebuild() {
     islandsGroup.clear();
@@ -142,8 +180,95 @@ export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'conf
       minutes: minutesOf,
       mmss,
       best: (l) => progress.get(l.meta.kid, l.meta.id),
-      onStart: (l) => quiz.start(l),
+      // 從學習屋去寫測驗：交卷後回到學習屋，剛打開的學習卡馬上看得到
+      onStart: (l) => startQuiz(l, { backLabel: kind === 'house' ? text.cards.leave : '' }),
+      mix: kind === 'tower' && presets.length ? mixExtra(def, info) : null,
+      house: kind === 'house' && cardsUI ? houseExtra(code) : null,
     }, () => openIsland(code));
+  }
+
+  function houseExtra(code) {
+    const { rule, from } = cardRule();
+    const T = text.cards;
+    return {
+      ruleText: fill(T.ruleLine, { rule: T.ruleNames[rule] || rule }) + (from === 'sheet' ? T.ruleFromSheet : T.ruleFromDefault),
+      state: (l) => cardState(l, progress.get(l.meta.kid, l.meta.id), rule),
+      onCards: (l) => {
+        // 打開前再檢查一次，避免清單畫好後規則變了
+        if (cardState(l, progress.get(l.meta.kid, l.meta.id), cardRule().rule).open) cardsUI.open(safeFresh(l) || l); // 每次看到新的例題
+        else openBuilding(code, 'house');
+      },
+    };
+  }
+
+  // ---------- 出題 ----------
+
+  /** 同一關出一份新題目（關卡檔有 make 的才會變；綜合練習照原本勾的單元重抽） */
+  function freshen(l) {
+    if (l.meta.mix) return buildMix(l.meta.mixUnits, l.meta.mixPreset, l.meta.subject);
+    return materialize(l, { cfg: genCfg[l.meta.subject] });
+  }
+  function safeFresh(l) {
+    try { return freshen(l); } catch (err) { console.error(err); hud.showErrors([{ file: l.meta.id, message: err.message }]); return null; }
+  }
+  function startQuiz(l, opts) {
+    const fresh = safeFresh(l);
+    if (fresh) quiz.start(fresh, opts);
+  }
+
+  /** 綜合練習的代號：同一張考卷的關卡代號去掉最後的「-來源-序號」，例如 jie-6a-math-mix-10 */
+  const mixId = (sample, count) => sample.meta.id.replace(/-[a-z]+-\d+$/, '') + '-mix-' + count;
+
+  function buildMix(unitNames, preset, subject) {
+    const all = levels.filter((l) => l.meta.kid === kid && l.meta.subject === subject && l.meta.unit && l.meta.make);
+    const units = unitNames.map((u) => ({ unit: u, levels: all.filter((l) => l.meta.unit === u) })).filter((u) => u.levels.length);
+    if (!units.length) throw new Error(text.mix.none);
+    const sample = units[0].levels[0];
+    return mixLevel(units, {
+      count: preset.count,
+      cfg: genCfg[subject],
+      meta: {
+        id: mixId(sample, preset.count),
+        kid: sample.meta.kid,
+        grade: sample.meta.grade,
+        subject,
+        source: text.mix.title,
+        name: fill(text.mix.name, { n: preset.count }),
+        why: fill(text.mix.why, { units: units.map((u) => u.unit).join('、') }),
+        minutes: preset.minutes,
+        mixUnits: units.map((u) => u.unit),
+        mixPreset: preset,
+      },
+    });
+  }
+
+  /** 測驗塔最下面的綜合練習：勾單元、選題數 */
+  function mixExtra(def, info) {
+    const units = info.groups.filter((g) => g.items.some((l) => l.meta.unit && l.meta.make)).map((g) => g.title);
+    if (!units.length) return null;
+    const key = 'mix.' + kid + '.' + def.code;
+    let saved = null;
+    try { saved = JSON.parse(store.get(key) || 'null'); } catch { saved = null; }
+    const selected = new Set(Array.isArray(saved) ? saved.filter((u) => units.includes(u)) : units);
+    const sample = info.groups.flatMap((g) => g.items).find((l) => l.meta.unit && l.meta.make);
+    return {
+      units,
+      selected,
+      presets,
+      best: (p) => progress.get(kid, mixId(sample, p.count)),
+      toggle(u, on) {
+        if (on) selected.add(u); else selected.delete(u);
+        store.set(key, JSON.stringify([...selected]));
+      },
+      start(p) {
+        const chosen = units.filter((u) => selected.has(u));
+        if (!chosen.length) return false;
+        let lv;
+        try { lv = buildMix(chosen, p, def.subject); } catch (err) { hud.showErrors([{ file: text.mix.title, message: err.message }]); return true; }
+        quiz.start(lv, { backLabel: '' });
+        return true;
+      },
+    };
   }
 
   function backToAll() {
@@ -203,7 +328,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'conf
     kids,
     kid: () => kid,
     refresh() {
-      if (quizRoot.hidden === false) return; // 作答中不動，關掉後會自己重畫
+      if (quizRoot.hidden === false || cardsUI?.isOpen) return; // 作答、看卡中不動，關掉後會自己重畫
       if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind);
     },
   };
@@ -225,7 +350,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, configPath = 'conf
     view.render();
   });
 
-  return { ...api, openIsland, backToAll, quiz };
+  return { ...api, openIsland, backToAll, quiz, cards: cardsUI };
 }
 
 function webglOK() {

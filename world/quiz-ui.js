@@ -11,8 +11,9 @@ import {
  * onResult(result, level)：交卷後呼叫，回傳要顯示的額外資訊（例如 { improved, record }）。
  * onClose()：按「回到測驗塔」時呼叫。
  * onOpenChange(open)：測驗畫面打開或關上時呼叫（3D 場景可以趁這時暫停）。
+ * refresh(level)：按「整關再挑戰」時呼叫，回傳同一關的新題目（出題模組用）；不給就用原來的題目。
  */
-export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange }) {
+export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange, refresh }) {
   const T = text.quiz;
   const fill = (s, vals) => String(s).replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
   let level = null;
@@ -20,6 +21,7 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
   let countdown = null;
   let confirm = null; // 'submit' | 'restart' | 'leave'：再按一次才會執行
   let lastResult = null;
+  let backLabel = ''; // 成績畫面「回到…」按鈕的字；從學習屋來的測驗會換成「回到學習屋」
 
   function el(tag, cls, content) {
     const e = document.createElement(tag);
@@ -50,8 +52,9 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
 
   // ---------- 作答 ----------
 
-  function start(lv, { only = null } = {}) {
+  function start(lv, { only = null, backLabel: back } = {}) {
     stopClock();
+    if (back !== undefined) backLabel = back || '';
     level = lv;
     session = createSession(lv, { only, settings });
     confirm = null;
@@ -216,8 +219,8 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
     const actions = el('div', 'actions');
     if (wrong.length) actions.append(button(fill(T.retry, { n: wrong.length }), 'btn', () => start(level, { only: wrong })));
     actions.append(
-      button(T.again, 'btn ghost', () => start(level)),
-      button(T.back, 'btn ghost', () => { hide(); onClose?.(); }),
+      button(T.again, 'btn ghost', () => { let lv = level; try { lv = refresh ? refresh(level) || level : level; } catch (err) { console.error(err); } start(lv); }),
+      button(backLabel || T.back, 'btn ghost', () => { hide(); onClose?.(); }),
     );
 
     const list = el('ol', 'review');

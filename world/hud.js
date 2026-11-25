@@ -31,6 +31,63 @@ export function createHud(root, text) {
     hint.hidden = true;
   }
 
+  /** 學習屋清單裡一關的那一列：能看就給「看學習卡」，還沒打開就說要先做什麼 */
+  function houseRow(l, extra) {
+    const T = text.cards;
+    const st = extra.house.state(l);
+    if (st.reason === 'empty') return [el('p', 'tag', text.notReady)];
+    if (st.open) {
+      const row = el('div', 'lv-act');
+      const go = el('button', 'btn', fill(T.open, { n: l.questions.length }));
+      go.type = 'button';
+      go.addEventListener('click', () => extra.house.onCards(l));
+      row.append(go);
+      return [row];
+    }
+    const best = extra.best ? extra.best(l) : null;
+    const msg = st.reason === 'needPerfect'
+      ? (best ? fill(T.needPerfect, { n: best.best, total: l.questions.length }) : T.needPerfectNone)
+      : T.needQuiz;
+    const go = el('button', 'btn ghost', T.goQuiz);
+    go.type = 'button';
+    go.addEventListener('click', () => extra.onStart(l));
+    return [el('p', 'lock', msg), go];
+  }
+
+  /** 綜合練習：勾單元（可以複選）＋題數按鈕 */
+  function mixBlock(mix) {
+    const T = text.mix;
+    const box = el('section', 'mix');
+    box.append(el('h3', '', T.title), el('p', 'muted', T.body));
+    const list = el('div', 'mix-units');
+    const warn = el('p', 'lock', T.none);
+    const sync = () => { warn.hidden = mix.selected.size > 0; };
+    mix.units.forEach((u, i) => {
+      const label = el('label', 'mix-unit');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.id = 'mix-' + i;
+      cb.checked = mix.selected.has(u);
+      cb.addEventListener('change', () => { mix.toggle(u, cb.checked); sync(); });
+      label.append(cb, el('span', '', u));
+      list.append(label);
+    });
+    const row = el('div', 'mix-presets');
+    for (const p of mix.presets) {
+      const wrap = el('div', 'mix-preset');
+      const b = el('button', 'btn', fill(T.preset, { n: p.count, m: p.minutes }));
+      b.type = 'button';
+      b.addEventListener('click', () => { if (!mix.start(p)) { warn.hidden = false; } });
+      wrap.append(b);
+      const best = mix.best(p);
+      if (best) wrap.append(el('span', best.best >= p.count ? 'best won' : 'best', fill(T.best, { n: best.best, total: p.count })));
+      row.append(wrap);
+    }
+    box.append(list, row, warn);
+    sync();
+    return box;
+  }
+
   return {
     setKids(kids, current, onPick) {
       kidsBox.replaceChildren();
@@ -79,6 +136,7 @@ export function createHud(root, text) {
       const nodes = [el('p', 'muted', island.name), el('h2', '', building.label)];
       nodes.push(el('p', '', text[kind + 'Body'] || ''));
       if (kind === 'tent') nodes.push(el('p', 'tag', fill(text.tentPool, { n: extra.choiceCount })));
+      if (kind === 'house' && extra.house) nodes.push(el('p', 'rule-line muted', extra.house.ruleText));
       for (const g of info.groups) {
         nodes.push(el('h3', '', g.title));
         const ul = el('ul', 'levels');
@@ -105,10 +163,12 @@ export function createHud(root, text) {
               li.append(row);
             }
           }
+          if (kind === 'house' && extra.house) li.append(...houseRow(l, extra));
           ul.append(li);
         }
         nodes.push(ul);
       }
+      if (kind === 'tower' && extra.mix) nodes.push(mixBlock(extra.mix));
       open(nodes, onBack);
     },
 

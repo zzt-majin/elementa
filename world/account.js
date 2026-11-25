@@ -13,6 +13,7 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
   const early = []; // 雲端還沒準備好之前交的卷，準備好再排進去
   const later = new Set(); // 這次打開網站時按過「先不登入」的小孩
   const status = {}; // 每個小孩最後的同步狀態
+  const lastSettings = {}; // 每個小孩上次拿到的試算表「設定」，有變才重畫
 
   async function setup(w) {
     world = w;
@@ -29,8 +30,13 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
       store: localStore(storePrefix),
       fetchFn,
       onStatus(kid, s) { status[kid] = s; ui?.render(); },
-      onProgress(kid, progress) {
-        if (world.progress.merge(kid, progress)) world.refresh();
+      onProgress(kid, progress, sheet) {
+        const merged = world.progress.merge(kid, progress);
+        // 家長改了試算表「設定」（例如學習卡開放時機），學習屋清單也要重畫
+        const key = JSON.stringify(sheet || null);
+        const settingsChanged = sheet && lastSettings[kid] !== key;
+        if (sheet) lastSettings[kid] = key;
+        if (merged || settingsChanged) world.refresh();
       },
     });
     ui = createLoginUI(hudRoot, world.text.login || {}, {
@@ -57,6 +63,8 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
     hooks: {
       onReady(w) { setup(w).catch((err) => console.error(err)); },
       onKidChange() { ui?.render(); sync(); },
+      /** 學習屋、搶答賽讀家長在試算表「設定」填的規則；還沒登入過是 null，用 config 的預設 */
+      settingsOf: (kid) => cloud?.settingsOf(kid) || null,
       onResult(summary) {
         if (cloud) { cloud.enqueue(summary); ui?.render(); }
         else early.push(summary);

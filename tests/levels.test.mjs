@@ -3,9 +3,13 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { loadLevels, kidsIn, levelsFor, timeLimitMinutes } from '../engine/levels.js';
+import { materialize } from '../engine/generate.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const { levels, errors } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
+const { levels: raw, errors } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
+// 有 make 的關卡先出一份題目（每次測驗都會出新的；這裡用固定種子方便重現）
+const genCfg = JSON.parse(await readFile(root + 'config/generators/math.json', 'utf8'));
+const levels = raw.map((l, i) => materialize(l, { seed: 1000 + i, cfg: genCfg }));
 let problems = errors.map((e) => `${e.file}: ${e.message}`);
 
 for (const l of levels) {

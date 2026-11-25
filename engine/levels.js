@@ -1,5 +1,6 @@
 // engine/levels.js
 // 讀取與解析關卡檔（.md）。不含任何題目、小孩名字或畫面程式，
+// 關卡檔可以手寫題目，也可以只寫 make（出題模組的題型和題數，見 engine/generate.js），
 // 瀏覽器和 Node 都能用。格式見 docs/關卡檔格式.md。
 
 const FIELD_NAMES = ['題型', '題目', '答案', '單位', '技巧', '語音'];
@@ -17,7 +18,7 @@ export function parseLevel(text) {
     const val = line.slice(i + 1).trim();
     if (key) meta[key] = val;
   }
-  for (const k of ['lost', 'minutes', 'order']) {
+  for (const k of ['lost', 'minutes', 'order', 'unitOrder']) {
     if (meta[k] !== undefined && meta[k] !== '') meta[k] = Number(meta[k]);
   }
   const questions = parseQuestions(m[2]);
@@ -96,8 +97,8 @@ async function defaultFetchText(url) {
 }
 
 function compareLevels(a, b) {
-  const ka = [a.meta.grade || '', a.meta.source || '', a.meta.order ?? 99, a.meta.id || ''];
-  const kb = [b.meta.grade || '', b.meta.source || '', b.meta.order ?? 99, b.meta.id || ''];
+  const ka = [a.meta.grade || '', a.meta.unitOrder ?? 99, a.meta.unit || a.meta.source || '', a.meta.order ?? 99, a.meta.id || ''];
+  const kb = [b.meta.grade || '', b.meta.unitOrder ?? 99, b.meta.unit || b.meta.source || '', b.meta.order ?? 99, b.meta.id || ''];
   for (let i = 0; i < ka.length; i++) {
     if (ka[i] < kb[i]) return -1;
     if (ka[i] > kb[i]) return 1;
@@ -110,12 +111,12 @@ export function kidsIn(levels) {
   return [...new Set(levels.map((l) => l.meta.kid).filter(Boolean))];
 }
 
-/** 某個小孩、某個科目的關卡，依考卷來源分組 */
+/** 某個小孩、某個科目的關卡，依單元分組（沒有 unit 欄位的關卡照年級＋考卷來源分組） */
 export function levelsFor(levels, { kid, subject }) {
   const list = levels.filter((l) => (!kid || l.meta.kid === kid) && l.meta.subject === subject);
   const groups = new Map();
   for (const l of list) {
-    const key = [l.meta.grade, l.meta.source].filter(Boolean).join(' ');
+    const key = l.meta.unit || [l.meta.grade, l.meta.source].filter(Boolean).join(' ');
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(l);
   }
