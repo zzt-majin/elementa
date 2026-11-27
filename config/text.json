@@ -197,5 +197,32 @@
     "mapBack": "回到小公主",
     "enter": "進入{name}",
     "enterKey": "空白鍵"
+  },
+  "reward": {
+    "_說明": "測驗塔和遊戲帳篷裡的獎賞說明。大括號裡的數字從 config/economy.json 帶進來：{coin} 歐巴幣、{gem} 那一科的寶石名稱。exampleCorrect 是帳篷例子裡「答對幾題」。",
+    "towerTitle": "🏆 歐巴幣怎麼拿",
+    "towerRule": "全對拿完整的{coin}（{first}＋每題 {per}，7 題就是 {ex}）；{list}，錯 {none} 題以上就沒有。之後寫得更好，會補發差額。已經全對過的關卡，每天再寫還能拿 {daily} 枚，一樣照錯幾題打折。",
+    "wrongRate": "錯 {w} 題打 {rate}",
+    "none": "沒有",
+    "levelLine": "現在交卷：{items} {coin}",
+    "perfectItem": "全對 +{n}",
+    "wrongItem": "錯 {w} 題 +{n}",
+    "levelDone": "這一關今天的歐巴幣拿完了，明天再來；現在還是可以練習、拿寶石！",
+    "tentTitle": "🏆 答對的獎賞",
+    "perCorrect": "每答對 1 題：+{n} {coin}",
+    "record": "打破自己的最高紀錄：再 +{n} {coin}（第一場是建立紀錄，還不算打破）",
+    "gemEvery": "每答對 {n} 題：+1 顆{gem}",
+    "wrong": "答錯不會扣{coin}，只會扣 {p} 秒",
+    "wrongNoPenalty": "答錯不會扣{coin}",
+    "capCoins": "搶答賽一天最多拿 {cap} {coin}",
+    "capGems": "{gem}和測驗加起來，一天最多 {gcap} 顆",
+    "exampleCorrect": 12,
+    "example": "例如：答對 {k} 題 → {a} {coin}{gems}",
+    "exampleRecord": "；如果還打破紀錄 → {b} {coin}{gems}",
+    "exampleGem": "＋{g} 顆{gem}",
+    "todayLeft": "今天還能拿 {n} {coin}",
+    "todayFull": "今天的搶答賽{coin}拿滿了，明天再來！還是可以練習、拿{gem}",
+    "todayFullNoGem": "今天的搶答賽{coin}拿滿了，明天再來！",
+    "bestTarget": "個人最高紀錄：答對 {n} 題。答對 {m} 題以上，就能多拿 +{bonus} {coin}！"
   }
 }

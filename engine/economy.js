@@ -12,6 +12,7 @@
 // 全對拿完整；錯 1 題 9 折、錯 2 題 5 折（無條件捨去）；錯 3 題以上 0。
 // 之後寫得更好，補發差額（最多補到完整）。已全對過的關卡，每天再寫一次也照同樣的折扣給「每天再全對」那一份。
 // coinsResetAt：這個時間以前的作答不算歐巴幣（也不給見面禮），以前寫過的關卡可以重新拿第一次的獎勵；寶石照算。
+// 搶答賽「打破最高紀錄」照全部紀錄的最高分比（和畫面上的個人最高紀錄一樣），只是歸零以前的不給歐巴幣。
 
 export const DEFAULTS = {
   firstLoginGift: 50,
@@ -100,7 +101,7 @@ export function computeWallet({ history = [], spends = [], rules, islandOf = () 
   const list = history.map(cleanEntry).filter(Boolean).sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const levels = new Map(); // 關卡代號 → { gemDay, gemBest }（寶石）
   const coinLv = new Map(); // 關卡代號 → { paid 第一次的獎勵已給多少, perfect, perfectDay, day, dayPaid }（歐巴幣，歸零後才開始記）
-  const gameBest = new Map(); // 島 → 最高分（歸零後才開始記）
+  const gameBest = new Map(); // 島 → 最高分（照全部紀錄算，和畫面上的個人最高紀錄一樣）
   const gameCoinsByDay = new Map();
   const gemsByDay = new Map(); // 島|日期 → 已拿幾顆
   const reset = r.coinsResetAt || 0;
@@ -117,15 +118,15 @@ export function computeWallet({ history = [], spends = [], rules, islandOf = () 
     let gems = 0;
     const coinsCount = e.at >= reset; // 歸零以前的作答不算歐巴幣
     if (e.kind === 'game') {
+      const prev = gameBest.get(island);
       if (coinsCount) {
-        const prev = gameBest.get(island);
         let c = e.score * r.quizGamePerCorrect + (prev !== undefined && e.score > prev ? r.quizGameNewRecord : 0);
         const usedToday = gameCoinsByDay.get(day) || 0;
         c = Math.max(0, Math.min(c, r.quizGameDailyCap - usedToday));
         gameCoinsByDay.set(day, usedToday + c);
         coins += c;
-        if (prev === undefined || e.score > prev) gameBest.set(island, e.score);
       }
+      if (prev === undefined || e.score > prev) gameBest.set(island, e.score);
       if (r.gemGameEvery > 0) gems += Math.floor(e.score / r.gemGameEvery);
     } else {
       let s = levels.get(e.level);
@@ -174,6 +175,17 @@ export function computeWallet({ history = [], spends = [], rules, islandOf = () 
   const gems = {};
   for (const k of new Set([...Object.keys(earned.gems), ...Object.keys(spent.gems)])) gems[k] = (earned.gems[k] || 0) - (spent.gems[k] || 0);
   return { coins: earned.coins - spent.coins, gems, earned, spent, events };
+}
+
+/**
+ * 如果現在交出 entry（{ level, island, score, total, kind }），會拿到多少？畫面上「這一關全對 +45」用。
+ * 照 computeWallet 一樣的規則算（把它當成最新的一筆），所以補差額、每天上限、歸零都會算進去。
+ */
+export function previewEarn({ history = [], rules, islandOf = () => '', dayOf = localDay, entry, now = Date.now() }) {
+  const id = '~preview';
+  const w = computeWallet({ history: [...history, { ...entry, id, at: now }], rules, islandOf, dayOf });
+  const ev = w.events.find((x) => x.id === id);
+  return ev ? { coins: ev.coins, gems: ev.gems } : { coins: 0, gems: {} };
 }
 
 /** 夠不夠付 price（{ coins, gems }）；回傳 { ok, short: { coins, gems } } 差多少 */

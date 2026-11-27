@@ -80,3 +80,13 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
 @media (pointer: coarse) { .enter-key { display: none; } }
 @keyframes enter-pop { from { transform: translateX(-50%) scale(.8); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 .map-btn[aria-pressed="true"] { background: var(--deep); }
+
+/* 獎賞說明（測驗塔、遊戲帳篷） */
+.reward-box { margin: 10px 0 12px; padding: 12px 14px; border-radius: 14px; background: #fff8e1; border: 2px solid #f5c842; }
+.reward-box h4 { margin: 0 0 6px; font: 700 18px "LXGW WenKai TC", serif; color: #a8790a; }
+.reward-box ul { margin: 0; padding-left: 20px; display: grid; gap: 2px; font-size: 15px; }
+.reward-box p { margin: 6px 0 0; font-size: 14px; }
+.reward-example { opacity: .8; }
+.reward-today { font-weight: 700; color: var(--deep); }
+.coin-line { display: block; margin: 6px 0 0; font-size: 13px; color: #a8790a; font-weight: 700; }
+.mix-preset .coin-line { margin: 0; flex-basis: 100%; }

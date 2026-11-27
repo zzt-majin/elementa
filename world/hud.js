@@ -60,14 +60,29 @@ export function createHud(root, text) {
     return [el('p', 'lock', msg), go];
   }
 
+  /** 獎賞說明框：標題、幾行規則、例子、今天還能拿多少 */
+  function rewardBox(title, lines, example, today) {
+    const box = el('section', 'reward-box');
+    if (title) box.append(el('h4', '', title));
+    if (lines && lines.length) {
+      const ul = el('ul');
+      for (const t of lines) ul.append(el('li', '', t));
+      box.append(ul);
+    }
+    if (example) box.append(el('p', 'reward-example', example));
+    if (today) box.append(el('p', 'reward-today', today));
+    return box;
+  }
+
   /** 遊戲帳篷上方：規則、題庫有幾關、最高紀錄、開始鈕 */
   function tentBlock(tent) {
     const T = text.race;
     const box = el('section', 'tent-box');
     box.append(el('p', 'rule-line muted', tent.ruleText));
+    if (tent.reward) box.append(rewardBox(tent.reward.title, tent.reward.lines, tent.reward.example, tent.reward.today));
     if (!tent.poolCount) { box.append(el('p', 'lock', T.poolEmpty)); return box; }
     box.append(el('p', '', fill(T.poolLine, { n: tent.poolCount })));
-    if (tent.best) box.append(el('p', 'best won', fill(T.bestLine, { n: tent.best.best })));
+    if (tent.best) box.append(el('p', 'best won', tent.reward?.bestText || fill(T.bestLine, { n: tent.best.best })));
     const go = el('button', 'btn race-go', T.enter);
     go.type = 'button';
     go.addEventListener('click', () => tent.onStart());
@@ -116,6 +131,7 @@ export function createHud(root, text) {
       b.type = 'button';
       b.addEventListener('click', () => { if (!mix.start(p)) { warn.hidden = false; } });
       wrap.append(b);
+      if (mix.coinLine) wrap.append(el('span', 'coin-line', mix.coinLine(p)));
       const best = mix.best(p);
       if (best) wrap.append(el('span', best.best >= p.count ? 'best won' : 'best', fill(T.best, { n: best.best, total: p.count })));
       row.append(wrap);
@@ -196,6 +212,7 @@ export function createHud(root, text) {
       nodes.push(el('p', '', text[kind + 'Body'] || ''));
       if (kind === 'tent' && extra.tent) nodes.push(tentBlock(extra.tent));
       if (kind === 'house' && extra.house) nodes.push(el('p', 'rule-line muted', extra.house.ruleText));
+      if (kind === 'tower' && extra.towerReward) nodes.push(rewardBox(extra.towerReward.title, [], extra.towerReward.rule, ''));
       for (const g of info.groups) {
         nodes.push(el('h3', '', g.title));
         const ul = el('ul', 'levels');
@@ -220,6 +237,7 @@ export function createHud(root, text) {
                 row.append(el('span', perfect ? 'best won' : 'best', (perfect ? text.towerPerfect + '・' : '') + fill(text.towerBest, { n: best.best, total: l.questions.length, t: extra.mmss(best.used) })));
               }
               li.append(row);
+              if (extra.towerReward) li.append(el('p', 'coin-line', extra.towerReward.coinLine(l.meta.id, l.questions.length)));
             }
           }
           if (kind === 'house' && extra.house) li.append(...houseRow(l, extra));

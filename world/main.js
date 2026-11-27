@@ -18,7 +18,7 @@ import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
 import { materialize, mixLevel } from '../engine/generate.js';
 import { raceSettings, rulesFor, raceId, poolState, buildPool, createDrawer, raceSummary, shouldRecord } from '../games/quiz-race/race.js';
 import { createRaceUI } from '../games/quiz-race/race-ui.js';
-import { economyRules, computeWallet, createLedger, newEntryId } from '../engine/economy.js';
+import { economyRules, computeWallet, createLedger, newEntryId, previewEarn } from '../engine/economy.js';
 
 const store = {
   get(k) { try { return localStorage.getItem('elementa.' + k); } catch { return null; } },
@@ -286,6 +286,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       // 從遊戲帳篷去寫測驗：交卷後回到帳篷，這一關的選擇題馬上放進題庫
       onStart: (l) => startQuiz(l, { backLabel: kind === 'house' ? text.cards.leave : kind === 'tent' ? text.race.leave : '' }),
       mix: kind === 'tower' && presets.length ? mixExtra(def, info) : null,
+      towerReward: kind === 'tower' ? towerReward(def) : null,
       house: kind === 'house' && cardsUI ? houseExtra(code) : null,
       tent: kind === 'tent' && raceUI ? tentExtra(def, info) : null,
     }, () => (mode === 'walk' ? backToAll() : openIsland(code))); // 走路模式按返回：回到小公主
@@ -306,6 +307,67 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   }
 
   /** 遊戲帳篷：規則、題庫、最高紀錄、開始 */
+  // ---------- 畫面上的獎賞說明（數字都照 config/economy.json，現在能拿多少照作答紀錄試算） ----------
+  const RW = () => text.reward || {};
+  const coinName = () => econ.currencyName || '歐巴幣';
+  // 還沒到歸零時間時，照歸零後算（不然畫面會全部寫 0）
+  const preview = (entry) => previewEarn({ history: kid ? ledger.history(kid) : [], rules: econ, islandOf, entry, now: Math.max(Date.now(), econ.coinsResetAt || 0) });
+  /** 0.9 → 9 折、0.85 → 85 折、0 → 沒有 */
+  const discountName = (r) => {
+    const n = Math.round(r * 100);
+    if (n <= 0) return RW().none || '0';
+    return (n % 10 === 0 ? n / 10 : n) + ' 折';
+  };
+
+  /** 測驗塔上方：歐巴幣怎麼拿（錯幾題打幾折） */
+  function towerReward(def) {
+    const T = RW();
+    const rates = econ.wrongRates;
+    const list = rates.slice(1).map((r, i) => fill(T.wrongRate, { w: i + 1, rate: discountName(r) })).join('、');
+    const first = econ.levelFirstSubmit;
+    const per = econ.levelFirstPerfectPerQuestion;
+    return {
+      title: T.towerTitle,
+      rule: fill(T.towerRule, { coin: coinName(), first, per, ex: first + per * 7, list, none: rates.length, daily: econ.levelRepeatPerfectDaily }),
+      /** 這一關（或綜合練習）現在交卷：全對、錯 1 題、錯 2 題…各會拿多少 */
+      coinLine(levelId, total) {
+        const vals = rates.map((_, w) => (total - w >= 0 ? preview({ level: levelId, island: def.code, score: total - w, total, kind: 'level' }).coins : 0));
+        if (vals.every((v) => !v)) return T.levelDone;
+        const items = vals.map((n, w) => (w ? fill(T.wrongItem, { w, n }) : fill(T.perfectItem, { n }))).join('・');
+        return fill(T.levelLine, { items, coin: coinName() });
+      },
+    };
+  }
+
+  /** 遊戲帳篷：答對的獎賞、今天還能拿多少、最高紀錄的目標 */
+  function tentReward(def, id, best) {
+    const T = RW();
+    const coin = coinName();
+    const gem = econ.gems[def.code]?.name || '';
+    const p = raceRules().penalty ?? 0;
+    const lines = [fill(T.perCorrect, { n: econ.quizGamePerCorrect, coin })];
+    if (econ.quizGameNewRecord) lines.push(fill(T.record, { n: econ.quizGameNewRecord, coin }));
+    if (gem && econ.gemGameEvery) lines.push(fill(T.gemEvery, { n: econ.gemGameEvery, gem }));
+    lines.push(fill(p ? T.wrong : T.wrongNoPenalty, { coin, p }));
+    const caps = [];
+    if (econ.quizGameDailyCap) caps.push(fill(T.capCoins, { cap: econ.quizGameDailyCap, coin }));
+    if (gem && econ.gemDailyCapPerIsland) caps.push(fill(T.capGems, { gcap: econ.gemDailyCapPerIsland, gem }));
+    if (caps.length) lines.push(caps.join('；'));
+    const k = Number(T.exampleCorrect) || 12;
+    const a = k * econ.quizGamePerCorrect;
+    const g = gem && econ.gemGameEvery ? Math.floor(k / econ.gemGameEvery) : 0;
+    const gemPart = g ? fill(T.exampleGem, { g, gem }) : '';
+    let example = fill(T.example, { k, a, coin, gems: gemPart });
+    if (econ.quizGameNewRecord) example += fill(T.exampleRecord, { b: a + econ.quizGameNewRecord, coin, gems: gemPart });
+    let today = '';
+    if (econ.quizGameDailyCap) {
+      const left = preview({ level: id, island: def.code, score: 1000, total: 1, kind: 'game' }).coins;
+      today = left > 0 ? fill(T.todayLeft, { n: left, coin }) : fill(gem ? T.todayFull : T.todayFullNoGem, { coin, gem });
+    }
+    const bestText = best && econ.quizGameNewRecord ? fill(T.bestTarget, { n: best.best, m: best.best + 1, bonus: econ.quizGameNewRecord, coin }) : '';
+    return { title: T.tentTitle, lines, example, today, bestText };
+  }
+
   function tentExtra(def, info) {
     const T = text.race;
     const rules = raceRules();
@@ -317,6 +379,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       ruleText: fill(T.tentRules, { s: rules.seconds, p: rules.penalty, pool: T.poolNames[rules.pool] || rules.pool }) + (rules.from === 'sheet' ? T.fromSheet : T.fromDefault),
       poolCount: pool.levels.length,
       best: progress.get(kid, id),
+      reward: tentReward(def, id, progress.get(kid, id)),
       state: (l) => poolState(l, recordOf(l), rules.pool),
       onStart() {
         // 按下去那一刻再算一次，避免清單畫好後成績或設定變了
@@ -401,6 +464,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       selected,
       presets,
       best: (p) => progress.get(kid, mixId(sample, p.count)),
+      coinLine: (p) => towerReward(def).coinLine(mixId(sample, p.count), p.count),
       toggle(u, on) {
         if (on) selected.add(u); else selected.delete(u);
         store.set(key, JSON.stringify([...selected]));

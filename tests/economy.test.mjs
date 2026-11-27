@@ -2,7 +2,7 @@
 // 檢查歐巴幣和寶石的帳本：每條規則、每天上限、錯題重練不給、合併本機和雲端紀錄不重複、扣掉花費。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { economyRules, computeWallet, canAfford, createLedger, cleanEntry, localDay, DEFAULTS } from '../engine/economy.js';
+import { economyRules, computeWallet, canAfford, createLedger, cleanEntry, localDay, DEFAULTS, previewEarn } from '../engine/economy.js';
 import { memoryStorage } from '../engine/progress.js';
 
 let passed = 0;
@@ -181,13 +181,13 @@ test('歸零：以前的作答不算歐巴幣、不給見面禮，寶石照算',
   assert.equal(computeWallet({ history: [], rules: live }).coins, 0);
 });
 
-test('歸零後：以前寫過的關卡可以重新拿第一次的獎勵；搶答賽最高紀錄重新算', () => {
+test('歸零後：以前寫過的關卡可以重新拿第一次的獎勵；搶答賽紀錄照真正的最高分比', () => {
   const R = live.coinsResetAt;
-  const h = [lv(7, 7, R - DAY), game(20, R - DAY + 1000), lv(6, 7, R + 1000), game(10, R + 2000), game(12, R + 3000)];
+  const h = [lv(7, 7, R - DAY), game(20, R - DAY + 1000), lv(6, 7, R + 1000), game(10, R + 2000), game(12, R + 3000), game(21, R + DAY)];
   const w = computeWallet({ history: h, rules: live });
-  assert.equal(w.coins, 40 + 10 + (12 + 15)); // 第一場不算刷新（以前的 20 分不算）
+  assert.equal(w.coins, 40 + 10 + 12 + (21 + 15)); // 12 沒超過以前的 20，不算打破；21 才算
   // 寶石照常：以前全對過，第一次全對的 +5 不再給
-  assert.equal(w.gems.math, 12 + 4 + 6 + 2 + 2);
+  assert.equal(w.gems.math, 12 + 4 + 6 + 2 + 2 + 4);
 });
 
 test('歸零時間寫錯或空白：不歸零', () => {
@@ -195,6 +195,21 @@ test('歸零時間寫錯或空白：不歸零', () => {
   assert.equal(economyRules({}).coinsResetAt, 0);
   assert.deepEqual(economyRules({ earn: { wrongRates: [1, 2] } }).wrongRates, [1, 0.9, 0.5]);
   assert.equal(computeWallet({ history: [], rules: economyRules({}) }).coins, 50);
+});
+
+test('previewEarn：畫面上「現在交會拿多少」', () => {
+  const at = T0 + 5000;
+  const p = (h, score, total = 7) => previewEarn({ history: h, rules, entry: { level: 'jie-6a-math-unit-01', island: 'math', score, total, kind: 'level' }, now: at }).coins;
+  assert.deepEqual([p([], 7), p([], 6), p([], 5), p([], 4)], [45, 40, 22, 0]);
+  assert.deepEqual([p([lv(5, 7)], 7), p([lv(5, 7)], 6), p([lv(5, 7)], 5)], [23, 18, 0]); // 已經拿過 22
+  assert.deepEqual([p([lv(7, 7, T0 - DAY)], 7), p([lv(7, 7, T0 - DAY)], 6), p([lv(7, 7, T0 - DAY)], 5)], [5, 4, 2]);
+  assert.deepEqual([p([lv(7, 7, T0 - DAY), lv(7, 7, T0)], 7)], [0]); // 今天已拿過
+  // 搶答賽今天還能拿多少：用很大的分數試
+  const left = (h) => previewEarn({ history: h, rules, entry: { level: 'game-math', island: 'math', score: 1000, total: 1, kind: 'game' }, now: at }).coins;
+  assert.equal(left([]), 50);
+  assert.equal(left([game(20)]), 30);
+  assert.equal(left([game(20), game(25, T0 + 1000)]), 0);
+  assert.equal(left([game(20, T0 - DAY)]), 50);
 });
 
 test('不合格的紀錄被丟掉', () => {
