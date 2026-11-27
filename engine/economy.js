@@ -66,7 +66,7 @@ export function economyRules(raw = {}) {
     if (!/^[a-z0-9-]{1,30}$/.test(kind) || !p || typeof p !== 'object') continue; // 跳過 _說明
     const gems = {};
     for (const [code, v] of Object.entries(obj(p?.gems))) { const k = n(v, 0, 100000, 0); if (k) gems[code] = k; }
-    rules.build[kind] = { coins: n(p?.coins, 0, 100000, 0), gems };
+    rules.build[kind] = { coins: n(p?.coins, 0, 100000, 0), step: n(p?.step, 0, 100000, 0), gems };
   }
   return rules;
 }

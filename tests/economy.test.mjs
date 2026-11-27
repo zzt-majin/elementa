@@ -27,8 +27,8 @@ test('config/economy.json 讀得進來，數字和設計決定一樣', () => {
   assert.equal(rules.gemFirstPerfectBonus, 5);
   assert.equal(rules.gemGameEvery, 5);
   assert.equal(rules.gemDailyCapPerIsland, 30);
-  assert.deepEqual(rules.build.bridge, { coins: 120, gems: {} });
-  assert.deepEqual(rules.build.road, { coins: 150, gems: { math: 60 } });
+  assert.deepEqual(rules.build.bridge, { coins: 120, step: 120, gems: {} }); // 第 n 座 = 120 × n（2026-11-27 家長改）
+  assert.deepEqual(rules.build.road, { coins: 150, step: 0, gems: { math: 60 } });
   assert.equal(rules.gems.math.name, '鑽石');
   assert.equal(Object.keys(rules.gems).length, 5);
   assert.ok(!('_說明' in rules.build));

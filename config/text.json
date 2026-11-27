@@ -225,7 +225,7 @@
     "bestTarget": "個人最高紀錄：答對 {n} 題。答對 {m} 題以上，就能多拿 +{bonus} {coin}！"
   },
   "bridge": {
-    "_說明": "蓋橋（世界設定第 4 步）。{from}／{to} 換成島名，{n} 是數字，{coin} 是歐巴幣的名字。",
+    "_說明": "蓋橋（世界設定第 4 步）。{from}／{to} 換成島名，{n} 是數字，{coin} 是歐巴幣的名字。intro 開頭的是蓋好第 1 座以後跳出的「橋越蓋越貴囉！」說明，{done} 是已經蓋了幾座，{step} 是每座多多少。",
     "signTitle": "蓋橋",
     "signSub": "{n} {coin}",
     "door": "蓋到{to}的橋",
@@ -240,7 +240,20 @@
     "confirm": "確定要花 {n} {coin}嗎？再按一次",
     "locked": "要先蓋好通到{from}的橋，才能蓋這一座。",
     "built": "這座橋已經蓋好了。",
-    "done": "橋蓋好了！走過去看看{to}吧"
+    "done": "橋蓋好了！走過去看看{to}吧",
+    "nth": "這是你的第 {n} 座橋",
+    "why": "為什麼變貴了？",
+    "introTitle": "橋越蓋越貴囉！",
+    "introDone1": "恭喜你蓋好第 1 座橋！",
+    "introDoneN": "你已經蓋好 {done} 座橋了！",
+    "introRule": "接下來每多蓋一座橋，就要多花 {step} {coin}。",
+    "introBuilt": "已經蓋好",
+    "introNow": "現在要蓋",
+    "introNth": "第 {n} 座",
+    "introUnit": "（單位：{coin}）",
+    "introTipTitle": "小提醒：",
+    "introTip": "先蓋哪一座島的橋都可以，價錢只看你蓋到第幾座。慢慢存{coin}，一座一座把群島連起來吧！",
+    "introOk": "我知道了"
   },
   "music": {
     "_說明": "右上角的時鐘和音樂。{name} 是歌名，{n} 是第幾首，{total} 是共幾首，{t} 是時間。",
@@ -252,5 +265,16 @@
     "songFlash": "第 {n} 首・{name}",
     "mutedLine": "音樂關著",
     "clockLabel": "台灣時間 {t}"
+  },
+  "calendar": {
+    "_說明": "左上角的日曆。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期。",
+    "yearLine": "{y}・{gz}年・生肖屬{animal}",
+    "label": "今天的日曆：{date}",
+    "birthdays": "今天生日",
+    "days": "今天是什麼日子",
+    "more": "今天的故事（{n}）",
+    "listTitle": "{m} 月 {d} 日的故事",
+    "fact": "小知識：",
+    "close": "知道了"
   }
 }

@@ -26,9 +26,20 @@ export function createHud(root, text) {
   $('#site-title').textContent = text.siteTitle;
   // 上方列多高（時鐘比較高，手機上會換行）：面板和登入卡片放在它下面，不會蓋住時鐘
   const topBar = root.querySelector('.top');
-  const syncTop = () => document.documentElement.style.setProperty('--hud-top', (topBar ? topBar.offsetHeight : 68) + 'px');
+  // 左上角的日曆多寬多高：上方列從日曆右邊開始排，登入卡片放在日曆旁邊或下面
+  const calBox = root.querySelector('#calendar');
+  const syncTop = () => {
+    const css = document.documentElement.style;
+    css.setProperty('--hud-top', (topBar ? topBar.offsetHeight : 68) + 'px');
+    css.setProperty('--cal-w', (calBox ? calBox.offsetWidth : 0) + 'px');
+    css.setProperty('--cal-h', (calBox ? calBox.offsetHeight : 0) + 'px');
+  };
   syncTop();
-  if (topBar && typeof ResizeObserver === 'function') new ResizeObserver(syncTop).observe(topBar);
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(syncTop);
+    if (topBar) ro.observe(topBar);
+    if (calBox) ro.observe(calBox);
+  }
   hint.textContent = text.hint;
 
   function el(tag, cls, content) {
@@ -334,12 +345,62 @@ export function createHud(root, text) {
           b.onBuild();
         });
         box.append(go);
+        if (b.whyLabel) {
+          const why = el('button', 'btn ghost build-why', b.whyLabel);
+          why.type = 'button';
+          why.addEventListener('click', b.onWhy);
+          box.append(why);
+        }
       }
+      if (b.nthText) box.prepend(el('p', 'build-nth', b.nthText));
       nodes.push(box);
       if (b.note) nodes.push(el('p', 'muted', b.note));
       open(nodes, onBack);
       panel.querySelector('.build-go:not(:disabled)')?.focus();
     },
+
+    /**
+     * 「橋越蓋越貴囉！」說明視窗（蓋在面板上面）：i = { title, lead, rule, rows: [{ n, coins, state: done|now|later }],
+     * labels: { done, now, nth }, unit, tipTitle, tip, ok }；按「我知道了」後呼叫 onDone（可以不給）
+     */
+    showIntro(i, onDone) {
+      root.querySelector('.intro-back')?.remove();
+      const back = el('div', 'intro-back');
+      const box = el('section', 'intro');
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-label', i.title);
+      const lead = el('p', 'intro-lead', i.lead);
+      lead.append(el('br'), el('b', '', i.rule));
+      const bars = el('div', 'intro-bars');
+      bars.style.gridTemplateColumns = 'repeat(' + i.rows.length + ', minmax(0, 1fr))';
+      const max = Math.max(...i.rows.map((r) => r.coins), 1);
+      for (const r of i.rows) {
+        const col = el('div', 'intro-col ' + r.state);
+        col.append(el('span', 'intro-tag', r.state === 'done' ? i.labels.done : r.state === 'now' ? i.labels.now : ''));
+        const bar = el('div', 'intro-bar', String(r.coins));
+        bar.style.height = Math.round(36 + 100 * (r.coins / max)) + 'px';
+        col.append(bar, el('span', 'intro-n', fill(i.labels.nth, { n: r.n })));
+        bars.append(col);
+      }
+      const tip = el('div', 'intro-tip');
+      tip.append(el('b', '', i.tipTitle), i.tip);
+      const ok = el('button', 'btn intro-ok', i.ok);
+      ok.type = 'button';
+      const close = () => { back.remove(); onDone?.(); };
+      ok.addEventListener('click', close);
+      back.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+        if (e.key === 'Tab') { e.preventDefault(); ok.focus(); }
+      });
+      box.append(el('h2', '', i.title), lead, bars, el('p', 'intro-unit', i.unit), tip, ok);
+      back.append(box);
+      root.append(back);
+      ok.focus();
+    },
+
+    /** 說明視窗是不是打開著 */
+    introOpen() { return !!root.querySelector('.intro-back'); },
 
     /** 下方提示文字暫時換成一句話（例如「橋蓋好了！」），幾秒後換回來 */
     flash(t, ms = 4000) {
@@ -350,10 +411,10 @@ export function createHud(root, text) {
       flashTimer = setTimeout(() => { hint.classList.remove('flash'); if (hint.textContent === t) hint.textContent = before; }, ms);
     },
 
-    close() { panel.hidden = true; hint.hidden = false; },
+    close() { panel.hidden = true; hint.hidden = false; root.querySelector('.intro-back')?.remove(); },
 
     /** 面板（島或建築的清單）是不是打開著 */
-    isOpen() { return !panel.hidden; },
+    isOpen() { return !panel.hidden || !!root.querySelector('.intro-back'); },
 
     /** 下方的提示文字 */
     setHint(t) { hint.textContent = t; },

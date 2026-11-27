@@ -6,7 +6,7 @@
 .account .sync.warn { color: #b0402a; opacity: 1; font-weight: 700; }
 .account .btn.small { min-height: 36px; }
 .link { min-height: 40px; padding: 0 8px; border: 0; background: none; font: 14px "Noto Sans TC", sans-serif; color: var(--deep); text-decoration: underline; cursor: pointer; }
-.login-card { position: absolute; top: calc(var(--hud-top, 68px) + 8px); left: max(16px, 3vw); width: min(360px, calc(100% - 32px)); padding: 20px; border-radius: 22px; background: var(--paper); box-shadow: 0 6px 0 var(--soft), 0 18px 40px rgba(90, 40, 70, .22); }
+.login-card { position: absolute; top: calc(var(--hud-top, 68px) + 8px); left: calc(var(--cal-w, 0px) + 32px); width: min(360px, calc(100% - 32px)); padding: 20px; border-radius: 22px; background: var(--paper); box-shadow: 0 6px 0 var(--soft), 0 18px 40px rgba(90, 40, 70, .22); }
 .login-card[hidden] { display: none; }
 .login-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 .login-form label { font-weight: 700; }
@@ -14,3 +14,4 @@
 .login-form input:focus-visible { outline: 3px solid var(--deep); outline-offset: 1px; border-color: var(--main); }
 .login-error { color: #b0402a; font-weight: 700; }
 .login-card .link { padding-left: 0; }
+@media (max-width: 640px) { .login-card { left: max(16px, 3vw); top: calc(max(var(--hud-top, 68px), var(--cal-h, 0px) + 14px) + 8px); } }

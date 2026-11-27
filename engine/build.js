@@ -69,6 +69,17 @@ export function reachable(plan, built, home) {
   return got;
 }
 
+/**
+ * 下一座橋要多少：第 1 座 rule.coins，之後每多蓋一座多 rule.step（第 n 座 = coins + step × (n − 1)）。
+ * builtCount：這個小孩已經蓋好幾座橋。回傳 { coins, gems, nth（這是第幾座） }
+ */
+export function bridgePrice(rule, builtCount) {
+  const k = Math.max(0, Math.floor(Number(builtCount)) || 0);
+  const base = Math.max(0, Number(rule?.coins) || 0);
+  const step = Math.max(0, Number(rule?.step) || 0);
+  return { coins: base + step * k, gems: { ...(rule?.gems || {}) }, nth: k + 1 };
+}
+
 /** 這座橋現在能不能蓋：要有一頭已經走得到（從家開始一座一座連出去） */
 export function canStart(bridge, reach) {
   return reach.has(bridge.from) || reach.has(bridge.to);

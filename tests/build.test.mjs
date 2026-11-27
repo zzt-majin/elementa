@@ -1,8 +1,9 @@
 // 用 Node 跑：node tests/build.test.mjs
 // 建設帳本：蓋橋的紀錄、同一座橋只扣一次錢、哪些島走得到、歐巴幣扣掉蓋橋的花費。
-import { cleanBuild, effectiveBuilds, bridgePlan, reachable, createBuildBook } from '../engine/build.js';
+import { cleanBuild, effectiveBuilds, bridgePlan, reachable, createBuildBook, bridgePrice } from '../engine/build.js';
 import { computeWallet, economyRules, canAfford } from '../engine/economy.js';
 import { memoryStorage } from '../engine/progress.js';
+import { readFileSync } from 'node:fs';
 
 let pass = 0;
 const fail = [];
@@ -59,6 +60,17 @@ const subjects = { islands: ['math', 'chinese', 'english', 'science', 'social'].
   ok(canAfford(rich, { coins: 120 }).ok, '140 枚：夠蓋');
   const after = computeWallet({ history: more, spends: effectiveBuilds([b(), b({ id: 'b-2', at: 2000 })]), rules });
   ok(after.coins === 20, '蓋了一座（重複的不算）：剩 20 枚');
+}
+
+// 6. 橋越蓋越貴：第 n 座 = 120 + 120 × (n − 1)
+{
+  const rule = economyRules({ build: { bridge: { coins: 120, step: 120 } } }).build.bridge;
+  ok([0, 1, 2, 3].map((k) => bridgePrice(rule, k).coins).join(',') === '120,240,360,480', '120、240、360、480');
+  ok(bridgePrice(rule, 1).nth === 2, '蓋好 1 座，下一座是第 2 座');
+  ok(bridgePrice(economyRules({ build: { bridge: { coins: 120 } } }).build.bridge, 3).coins === 120, '沒寫 step：每座一樣');
+  ok(bridgePrice(rule, -2).coins === 120 && bridgePrice(null, 2).coins === 0, '奇怪的數字不會出錯');
+  const real = economyRules(JSON.parse(readFileSync(new URL('../config/economy.json', import.meta.url), 'utf8'))).build.bridge;
+  ok(bridgePrice(real, 1).coins === 240 && bridgePrice(real, 3).coins === 480, 'economy.json：第 2 座 240、第 4 座 480');
 }
 
 console.log(`build: ${pass} 通過` + (fail.length ? `，${fail.length} 失敗：\n- ` + fail.join('\n- ') : ''));

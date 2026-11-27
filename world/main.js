@@ -11,10 +11,11 @@ import { createControls } from './controls.js';
 import { makePrincess } from '../avatar/princess.js';
 import { createWalker, screenToGround, nearestDoor } from '../avatar/walk.js';
 import { bridgeConfig, bridgeLine, bridgeStrip, makeBridge, makeBridgeSite, makeMist } from './bridges.js';
-import { bridgePlan, reachable, canStart, createBuildBook } from '../engine/build.js';
+import { bridgePlan, reachable, canStart, createBuildBook, bridgePrice } from '../engine/build.js';
 import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
 import { clockText, msToNextMinute } from './clock.js';
+import { createCalendar } from './calendar.js';
 import { createQuizUI } from './quiz-ui.js';
 import { createCardsUI } from './cards-ui.js';
 import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
@@ -51,7 +52,7 @@ async function getJSON(url) {
  *   world.builds.merge(kid, builds)＋world.refreshBuilds(kid)：雲端回傳建設時，合併後重畫橋、重算歐巴幣。
  */
 export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
-  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig, musicLoaded] = await Promise.all([
+  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig, musicLoaded, calendarConfig] = await Promise.all([
     ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
     getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
     getJSON(configPath + 'cards.json').catch(() => ({})), // 沒有 cards.json 就用引擎預設
@@ -60,6 +61,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     getJSON(configPath + 'economy.json').catch(() => ({})), // 歐巴幣、寶石、建設價格
     getJSON(configPath + 'family.json').catch(() => ({})), // 家裡有哪些小孩（還沒有關卡的也能登入）
     getJSON(configPath + 'music.json').catch(() => ({})), // 背景音樂的歌單和時鐘的時區
+    getJSON(configPath + 'calendar.json').catch(() => ({})), // 左上角的日曆：國定假日、每天的名人和紀念日放哪
   ]);
   const presets = (Array.isArray(mixConfig?.presets) ? mixConfig.presets : [])
     .map((p) => ({ count: Math.round(Number(p.count)), minutes: Number(p.minutes) }))
@@ -68,6 +70,13 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const cardConf = cardSettings(cardsConfig);
   const raceConf = raceSettings(gameConfig);
   const hud = createHud(hudRoot, text);
+  // 左上角的日曆（傳統臺灣撕日曆）：點人名或節日跳出介紹；每天的資料讀 content/calendar/月-日.md
+  const calendarRoot = hudRoot.querySelector('#calendar');
+  const calendar = calendarRoot ? createCalendar(calendarRoot, hudRoot, {
+    text: text.calendar || {},
+    config: calendarConfig || {},
+    fetchText: async (url) => { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? r.text() : null; },
+  }) : { isOpen: () => false, close() {} };
   const loading = hudRoot.querySelector('#loading');
   loading.textContent = text.loading;
 
@@ -259,7 +268,34 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     }
     return out;
   }
-  const priceText = () => fill(B().signSub, { n: econ.build.bridge?.coins ?? 0, coin: econ.currencyName || '歐巴幣' });
+  /** 已經蓋好幾座橋（同一座只算一次） */
+  const bridgesBuilt = () => (kid ? builds.effective(kid).filter((x) => x.kind === 'bridge').length : 0);
+  /** 下一座橋要多少（第 n 座 = 120 × n，數字在 config/economy.json 的 build.bridge） */
+  const nextPrice = () => bridgePrice(econ.build.bridge, bridgesBuilt());
+  const priceText = () => fill(B().signSub, { n: nextPrice().coins, coin: econ.currencyName || '歐巴幣' });
+  /** 「橋越蓋越貴囉！」說明：蓋好第 1 座以後第一次打開建設面板跳出一次（每個小孩記在這台裝置），之後按「為什麼變貴了？」再看 */
+  function bridgeIntro(onDone) {
+    const T = B();
+    const coin = econ.currencyName || '歐巴幣';
+    const done = bridgesBuilt();
+    const rule = econ.build.bridge || {};
+    const rows = plan.map((_, i) => ({
+      n: i + 1,
+      coins: bridgePrice(rule, i).coins,
+      state: i < done ? 'done' : i === done ? 'now' : 'later',
+    }));
+    hud.showIntro({
+      title: T.introTitle,
+      lead: done === 1 ? T.introDone1 : fill(T.introDoneN, { done }),
+      rule: fill(T.introRule, { step: rule.step || 0, coin }),
+      rows,
+      labels: { done: T.introBuilt, now: T.introNow, nth: T.introNth },
+      unit: fill(T.introUnit, { coin }),
+      tipTitle: T.introTipTitle,
+      tip: fill(T.introTip, { coin }),
+      ok: T.introOk,
+    }, onDone);
+  }
   /** 畫橋、虛線、淡霧（照這個小孩蓋過的） */
   function drawBridges() {
     bridgesGroup.clear();
@@ -316,9 +352,11 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const coin = econ.currencyName || '歐巴幣';
     const fromName = isl(reach.has(b.to) && !reach.has(b.from) ? b.to : b.from)?.name || '';
     const toName = isl(otherEnd(b))?.name || '';
-    const price = econ.build.bridge || { coins: 0, gems: {} };
+    const price = nextPrice();
     const w = kid ? walletOf(kid) : { coins: 0, gems: {} };
     const pay = canAfford(w, price);
+    const step = econ.build.bridge?.step || 0;
+    const raised = step > 0 && price.nth >= 2; // 已經蓋過，價錢開始往上加
     const built = v?.kind === 'built' || growing?.key === key;
     const state = built ? 'built' : !canStart(b, reach) ? 'locked' : pay.ok ? 'ready' : 'short';
     const target = isl(otherEnd(b));
@@ -336,15 +374,24 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       lockedText: fill(T.locked, { from: fromName }),
       buildLabel: fill(T.build, { n: price.coins, coin }),
       confirmLabel: fill(T.confirm, { n: price.coins, coin }),
+      nthText: raised && state !== 'built' ? fill(T.nth, { n: price.nth }) : '',
+      whyLabel: raised && state !== 'built' ? T.why : '',
+      onWhy: () => bridgeIntro(() => openBridge(key)),
       onBuild: () => buildBridge(key),
     }, backToAll);
+    // 蓋好第 1 座以後，第一次打開建設面板：先跳出說明
+    const seenKey = 'bridgeIntro.' + kid;
+    if (raised && state !== 'built' && kid && store.get(seenKey) !== '1') {
+      store.set(seenKey, '1');
+      bridgeIntro(null);
+    }
   }
 
   /** 真的蓋下去：記帳、存到試算表、木板一片一片長出來，蓋好後才能走 */
   function buildBridge(key) {
     const v = bridgeViews.get(key);
     if (!kid || !v || v.kind !== 'site' || growing) return false;
-    const price = econ.build.bridge || { coins: 0, gems: {} };
+    const price = nextPrice();
     if (!canAfford(walletOf(kid), price).ok || !canStart(v.b, reach)) { openBridge(key); return false; }
     const rec = { id: newEntryId(), at: Date.now(), kind: 'bridge', key, coins: price.coins, gems: price.gems || {} };
     if (!builds.add(kid, rec)) { openBridge(key); return false; }
@@ -664,10 +711,11 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   }
 
   const controls = createControls({
-    enabled: () => mode === 'walk' && !paused && !hud.isOpen(),
+    enabled: () => mode === 'walk' && !paused && !hud.isOpen() && !calendar.isOpen(),
     onAction: enterDoor,
     onEscape() {
       if (paused) return; // 作答、看卡時交給那個畫面自己處理
+      if (calendar.isOpen()) { calendar.close(); return; }
       if (hud.isOpen()) backToAll();
       else if (mode === 'map') setMode('walk');
     },
@@ -821,7 +869,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   }
 
   return {
-    ...api, openIsland, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI, openBridge,
+    ...api, openIsland, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI, openBridge, calendar,
     /** 檢查用（自動測試讀小公主在哪、走得到哪些島）；網站本身不用 */
     debug: { walker, area: () => area, reach: () => [...reach], mist: () => mistGroup.children.map((m) => m.userData.mist), bridges: () => [...bridgeViews].map(([k, v]) => k + ':' + v.kind), growing: () => !!growing },
   };

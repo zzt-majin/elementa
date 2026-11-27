@@ -11,7 +11,7 @@ body { font: 16px/1.55 "Noto Sans TC", system-ui, sans-serif; color: var(--ink);
 #world { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud > * { pointer-events: auto; }
-#hud > .top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding: 14px max(16px, 3vw); pointer-events: none; }
+#hud > .top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; justify-content: flex-end; gap: 12px; flex-wrap: wrap; padding: 14px max(16px, 3vw) 14px calc(var(--cal-w, 0px) + 28px); pointer-events: none; }
 .top > * { pointer-events: auto; }
 h1 { margin: 0; font: 700 clamp(26px, 4vw, 38px)/1.05 "LXGW WenKai TC", serif; color: #fff; text-shadow: 0 2px 0 var(--deep), 0 4px 14px rgba(90, 40, 70, .35); margin-right: auto; }
 h2 { margin: 0 0 6px; font: 700 28px/1.15 "LXGW WenKai TC", serif; color: var(--deep); }
@@ -117,3 +117,101 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
   .song-name { font-size: 12px; max-width: 160px; }
   .mute-btn { font-size: 14px; }
 }
+
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* 左上角的日曆：傳統臺灣撕日曆（平日黑字，週末和國定假日紅字） */
+.calendar { position: absolute; left: max(16px, 2.5vw); top: 12px; width: 212px; }
+.cal-page { border-radius: 5px; background: #fffdf6; color: #1f1a1c; box-shadow: 0 4px 0 #e8dcc0, 0 11px 22px rgba(60, 40, 30, .25); overflow: hidden; font-family: "Noto Sans TC", sans-serif; }
+.cal-head { position: relative; background: #c8232c; color: #fff; padding: 13px 8px 5px; text-align: center; }
+.cal-hole { position: absolute; top: 4px; width: 8px; height: 8px; border-radius: 50%; background: #fffdf6; }
+.cal-hole.left { left: 50px; } .cal-hole.right { right: 50px; }
+.cal-roc { font: 900 12px/1.3 "Noto Sans TC", sans-serif; letter-spacing: 1.5px; }
+.cal-gz { font-size: 10px; opacity: .95; }
+.cal-month { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 11px 0; border-bottom: 1px dashed #d9c9a8; }
+.cal-month-zh { font: 900 16px "Noto Sans TC", sans-serif; color: #c8232c; }
+.cal-month-zh small { font-size: 10px; font-weight: 700; }
+.cal-term { font-size: 11px; font-weight: 700; color: #2f6b3a; }
+.cal-term.today { background: #2f6b3a; color: #fff; padding: 0 6px; border-radius: 999px; }
+.cal-body { display: flex; align-items: stretch; padding: 2px 6px 5px; }
+.cal-lunar, .cal-daygz { writing-mode: vertical-rl; padding: 6px 1px; }
+.cal-lunar { font: 700 12px/1.2 "LXGW WenKai TC", serif; color: #8a5a2b; letter-spacing: 2px; }
+.cal-daygz { font-size: 10.5px; font-weight: 700; color: #6b5d62; letter-spacing: 1.5px; }
+.cal-mid { flex: 1; text-align: center; }
+.cal-day { font: 900 90px/1 "Noto Sans TC", sans-serif; letter-spacing: -3px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.cal-week { font: 900 18px "Noto Sans TC", sans-serif; letter-spacing: 5px; }
+.cal-week-en { font-size: 10px; font-weight: 700; letter-spacing: 2.5px; color: #6b5d62; }
+.cal-holiday { display: inline-block; margin-top: 2px; padding: 0 8px; border-radius: 999px; background: #c8232c; color: #fff; font-size: 11px; font-weight: 700; }
+.cal-page.red .cal-day, .cal-page.red .cal-week { color: #c8232c; }
+.cal-foot { padding: 6px 10px 10px; background: #fff7df; border-top: 2px solid #c8232c; }
+.cal-foot[hidden] { display: none; }
+.cal-lists { display: flex; flex-direction: column; gap: 5px; }
+.cal-sec { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 900; }
+.cal-sec svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cal-sec.birthday { color: #c8232c; } .cal-sec.day { color: #2f6b3a; margin-top: 2px; }
+.cal-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.cal-chip { min-height: 32px; padding: 0 9px; border: 1.5px solid #e2b44a; border-radius: 999px; background: #fff; color: #3b2a30; font: 700 12.5px "Noto Sans TC", sans-serif; cursor: pointer; }
+.cal-chip.day { border-color: #7fb48a; }
+.cal-chip:hover { background: #fff2c9; }
+.cal-more { display: none; width: 100%; min-height: 36px; border: 1.5px solid #e2b44a; border-radius: 10px; background: #fff; color: #c8232c; font: 700 12px "Noto Sans TC", sans-serif; cursor: pointer; }
+/* 介紹小視窗 */
+.cal-back { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(40, 25, 30, .45); }
+.cal-dialog { width: min(560px, 100%); max-height: calc(100% - 32px); overflow-y: auto; box-sizing: border-box; padding: 22px 26px 20px; border-radius: 26px; background: #fffdf6; color: #3b2a30; box-shadow: 0 8px 0 #e8dcc0, 0 24px 60px rgba(40, 25, 30, .35); display: flex; flex-direction: column; gap: 12px; animation: enter-pop-c .2s ease-out; }
+@keyframes enter-pop-c { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.cal-dialog h2 { margin: 0; font: 700 30px/1.2 "LXGW WenKai TC", serif; color: #c8232c; }
+.cal-dialog h3 { margin: 4px 0 0; font-size: 15px; }
+.cal-l-title.birthday { color: #c8232c; } .cal-l-title.day { color: #2f6b3a; }
+.cal-chips.big .cal-chip { min-height: 44px; font-size: 16px; padding: 0 14px; }
+.cal-d-head { display: flex; align-items: center; gap: 16px; }
+.cal-badge { flex: none; width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; }
+.cal-d-foreign { margin: 2px 0 0; font-size: 14px; color: #6b5d62; }
+.cal-d-sub { margin: 2px 0 0; font-size: 14px; font-weight: 700; color: #6b5d62; }
+.cal-d-text { margin: 0; font-size: 19px; line-height: 1.75; }
+.cal-d-fact { padding: 10px 14px; border-radius: 14px; background: #fff2c9; font-size: 16px; line-height: 1.6; }
+.cal-d-fact b { color: #a8790a; }
+.cal-close { align-self: center; min-height: 48px; padding: 0 40px; border: 2px solid var(--soft); border-radius: 14px; background: #fff; color: var(--deep); font: 700 17px "Noto Sans TC", sans-serif; cursor: pointer; }
+.cal-close:hover { background: #ffe3ea; }
+@media (max-width: 640px) {
+  /* 手機：日曆縮成小小一張，名人和節日收進「今天的故事」按鈕 */
+  .calendar { width: 118px; left: 10px; top: 10px; }
+  .cal-head { padding: 11px 4px 3px; }
+  .cal-hole.left { left: 26px; } .cal-hole.right { right: 26px; }
+  .cal-roc { font-size: 10px; letter-spacing: 0; }
+  .cal-gz, .cal-month-zh small, .cal-daygz, .cal-week-en, .cal-lists { display: none; }
+  .cal-month { padding: 3px 6px 0; }
+  .cal-month-zh { font-size: 13px; }
+  .cal-term { font-size: 10px; }
+  .cal-body { flex-direction: column; align-items: center; padding: 0 4px 4px; }
+  .cal-lunar { writing-mode: horizontal-tb; order: 2; padding: 0; font-size: 11px; letter-spacing: 0; }
+  .cal-day { font-size: 46px; margin-top: 2px; letter-spacing: -2px; }
+  .cal-week { font-size: 13px; letter-spacing: 2px; }
+  .cal-foot { padding: 5px 6px 6px; }
+  .cal-more { display: block; }
+  .cal-dialog { padding: 18px 18px 16px; }
+  .cal-d-text { font-size: 17px; }
+  .cal-badge { width: 72px; height: 72px; }
+  .cal-badge svg { width: 46px; height: 46px; }
+}
+
+/* 蓋第 2 座橋以後：第幾座、「為什麼變貴了？」、「橋越蓋越貴囉！」說明 */
+.build-nth { display: inline-block; margin: 0 0 6px; padding: 2px 10px; border-radius: 999px; background: #f5c842; color: #5a4100; font-weight: 700; font-size: 14px; }
+.build-why { width: 100%; margin-top: 8px; }
+.intro-back { position: absolute; inset: 0; z-index: 25; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(40, 25, 30, .45); }
+.intro { width: min(600px, 100%); max-height: calc(100% - 32px); overflow-y: auto; box-sizing: border-box; padding: 24px 28px 20px; border-radius: 26px; background: #fffdf6; color: #3b2a30; box-shadow: 0 8px 0 #e8dcc0, 0 24px 60px rgba(40, 25, 30, .35); display: flex; flex-direction: column; gap: 12px; animation: enter-pop-c .2s ease-out; }
+.intro h2 { margin: 0; text-align: center; font: 700 32px/1.2 "LXGW WenKai TC", serif; color: #c8232c; }
+.intro-lead { margin: 0; text-align: center; font-size: 19px; line-height: 1.7; }
+.intro-lead b { color: #c8232c; }
+.intro-bars { display: grid; gap: 10px; align-items: end; padding-top: 6px; }
+.intro-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.intro-tag { min-height: 20px; font-size: 14px; font-weight: 700; }
+.intro-col.done .intro-tag { color: #2f6b3a; }
+.intro-col.now .intro-tag { color: #c8232c; }
+.intro-bar { width: 100%; border-radius: 10px 10px 4px 4px; display: grid; place-items: center; font: 900 20px "Noto Sans TC", sans-serif; color: #6b5100; background: #fff0c4; }
+.intro-col.done .intro-bar { background: #9fdc8c; color: #1f4d28; }
+.intro-col.now .intro-bar { background: #f5c842; color: #5a4100; box-shadow: 0 0 0 3px #c8232c; font-size: 22px; }
+.intro-n { font-size: 15px; font-weight: 700; }
+.intro-unit { margin: 0; text-align: center; font-size: 13px; color: #6b5d62; }
+.intro-tip { padding: 10px 14px; border-radius: 14px; background: #fff2c9; font-size: 16px; line-height: 1.65; }
+.intro-tip b { color: #a8790a; }
+.intro-ok { align-self: center; min-height: 50px; padding: 0 36px; font-size: 18px; }
+@media (max-width: 640px) { .intro { padding: 18px 16px 16px; } .intro h2 { font-size: 26px; } .intro-lead { font-size: 17px; } .intro-bar { font-size: 16px; } .intro-col.now .intro-bar { font-size: 18px; } }
