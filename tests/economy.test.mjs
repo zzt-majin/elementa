@@ -11,7 +11,8 @@ function test(name, fn) {
 }
 
 const raw = JSON.parse(readFileSync(new URL('../config/economy.json', import.meta.url), 'utf8'));
-const rules = economyRules(raw);
+const live = economyRules(raw); // 網站真的在用的規則（有歸零時間）
+const rules = economyRules({ ...raw, coinsResetAt: '' }); // 下面大部分測試不歸零，才看得出每條規則
 const DAY = 86400000;
 const T0 = new Date(2026, 10, 25, 10, 0, 0).getTime(); // 這台裝置時區的 11/25 早上十點
 let seq = 0;
@@ -46,9 +47,9 @@ test('什麼都沒做：只有見面禮 50', () => {
   assert.deepEqual(w.gems, {});
 });
 
-test('第一次交卷 +10，答對幾題給幾顆鑽石', () => {
+test('第一次交卷錯 2 題：完整 45 的 5 折 = 22（無條件捨去），答對幾題給幾顆鑽石', () => {
   const w = wallet([lv(5, 7)]);
-  assert.equal(w.coins, 60);
+  assert.equal(w.coins, 50 + 22);
   assert.equal(w.gems.math, 5);
 });
 
@@ -58,7 +59,7 @@ test('第一次全對：+10 +每題 5，鑽石 = 答對題數 + 5', () => {
   assert.equal(w.gems.math, 7 + 5);
 });
 
-test('先 5 題再全對：交卷只給一次，鑽石只補多答對的', () => {
+test('先 5 題再全對：補發差額，總共還是 45，鑽石只補多答對的', () => {
   const w = wallet([lv(5, 7), lv(7, 7, T0 + 60000)]);
   assert.equal(w.coins, 50 + 10 + 35);
   assert.equal(w.gems.math, 7 + 5);
@@ -78,7 +79,7 @@ test('隔天再全對：+5 歐巴幣（每天一次），鑽石重新算當天�
 
 test('錯題重練不給資源', () => {
   const w = wallet([lv(5, 7), lv(2, 2, T0 + 1000, 'jie-6a-math-unit-01', 'retry')]);
-  assert.equal(w.coins, 60);
+  assert.equal(w.coins, 72);
   assert.equal(w.gems.math, 5);
 });
 
@@ -136,7 +137,64 @@ test('扣掉蓋橋和公路的花費；夠不夠付', () => {
   assert.equal(canAfford(w, rules.build.bridge).ok, true);
   assert.equal(canAfford(w, rules.build.road).ok, true);
   const poor = wallet([lv(5, 7)]);
-  assert.deepEqual(canAfford(poor, rules.build.road), { ok: false, short: { coins: 90, gems: { math: 55 } } });
+  assert.deepEqual(canAfford(poor, rules.build.road), { ok: false, short: { coins: 78, gems: { math: 55 } } });
+});
+
+test('打折：全對 45、錯 1 題 9 折 40、錯 2 題 5 折 22、錯 3 題以上 0', () => {
+  assert.equal(wallet([lv(7, 7)]).coins - 50, 45);
+  assert.equal(wallet([lv(6, 7)]).coins - 50, 40); // 45 × 0.9 = 40.5 → 40
+  assert.equal(wallet([lv(5, 7)]).coins - 50, 22); // 45 × 0.5 = 22.5 → 22
+  assert.equal(wallet([lv(4, 7)]).coins - 50, 0);
+  assert.equal(wallet([lv(0, 7)]).coins - 50, 0);
+  assert.equal(wallet([lv(9, 10, T0, 'x-10')]).coins - 50, 54); // 10 題：完整 60，9 折 54
+  assert.equal(wallet([lv(1, 2, T0, 'x-2')]).coins - 50, 18); // 2 題：完整 20，錯 1 題 18
+});
+
+test('寫得更好補差額：0 → 22 → 40 → 45，寫差了不扣', () => {
+  const a = lv(3, 7, T0); const b = lv(5, 7, T0 + 1000); const c = lv(6, 7, T0 + 2000); const d = lv(4, 7, T0 + 3000); const e = lv(7, 7, T0 + 4000);
+  const w = wallet([a, b, c, d, e]);
+  const got = (x) => w.events.find((v) => v.id === x.id).coins;
+  assert.deepEqual([got(a), got(b), got(c), got(d), got(e)], [0, 22, 18, 0, 5]);
+  assert.equal(w.coins, 50 + 45);
+});
+
+test('已全對的關卡隔天再寫：5 枚也照錯幾題打折（錯 1 題 4、錯 2 題 2），當天寫更好補差額', () => {
+  const base = [lv(7, 7)];
+  assert.equal(wallet([...base, lv(6, 7, T0 + DAY)]).coins, 95 + 4);
+  assert.equal(wallet([...base, lv(5, 7, T0 + DAY)]).coins, 95 + 2);
+  assert.equal(wallet([...base, lv(4, 7, T0 + DAY)]).coins, 95);
+  assert.equal(wallet([...base, lv(5, 7, T0 + DAY), lv(7, 7, T0 + DAY + 1000)]).coins, 95 + 5);
+  assert.equal(wallet([...base, lv(7, 7, T0 + DAY), lv(7, 7, T0 + DAY + 1000)]).coins, 95 + 5);
+});
+
+test('網站設定：歐巴幣在 2026-11-27 18:00（台灣時間）歸零，錯幾題拿幾成 = [1, 0.9, 0.5]', () => {
+  assert.equal(live.coinsResetAt, Date.parse('2026-11-27T10:00:00Z'));
+  assert.deepEqual(live.wrongRates, [1, 0.9, 0.5]);
+});
+
+test('歸零：以前的作答不算歐巴幣、不給見面禮，寶石照算', () => {
+  const R = live.coinsResetAt;
+  const old = [lv(7, 7, R - DAY), game(20, R - DAY + 1000)];
+  const w = computeWallet({ history: old, rules: live });
+  assert.equal(w.coins, 0);
+  assert.equal(w.gems.math, 12 + 4);
+  assert.equal(computeWallet({ history: [], rules: live }).coins, 0);
+});
+
+test('歸零後：以前寫過的關卡可以重新拿第一次的獎勵；搶答賽最高紀錄重新算', () => {
+  const R = live.coinsResetAt;
+  const h = [lv(7, 7, R - DAY), game(20, R - DAY + 1000), lv(6, 7, R + 1000), game(10, R + 2000), game(12, R + 3000)];
+  const w = computeWallet({ history: h, rules: live });
+  assert.equal(w.coins, 40 + 10 + (12 + 15)); // 第一場不算刷新（以前的 20 分不算）
+  // 寶石照常：以前全對過，第一次全對的 +5 不再給
+  assert.equal(w.gems.math, 12 + 4 + 6 + 2 + 2);
+});
+
+test('歸零時間寫錯或空白：不歸零', () => {
+  assert.equal(economyRules({ coinsResetAt: 'abc' }).coinsResetAt, 0);
+  assert.equal(economyRules({}).coinsResetAt, 0);
+  assert.deepEqual(economyRules({ earn: { wrongRates: [1, 2] } }).wrongRates, [1, 0.9, 0.5]);
+  assert.equal(computeWallet({ history: [], rules: economyRules({}) }).coins, 50);
 });
 
 test('不合格的紀錄被丟掉', () => {

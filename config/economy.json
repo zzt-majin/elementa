@@ -1,12 +1,15 @@
 {
   "_說明": "歐巴幣、寶石的取得規則和建設價格。數字改這裡就好，不用動程式。網站不另外記餘額，每次都從作答紀錄照這些規則重新算，所以改了數字，以前的成績也會照新規則重算。",
   "currencyName": "歐巴幣",
+  "coinsResetAt": "2026-11-27T18:00:00+08:00",
+  "_coinsResetAt說明": "歐巴幣歸零的時間（台灣時間 +08:00）。這個時間以前寫的測驗、搶答賽都不算歐巴幣，見面禮也不再給；以前寫過的關卡可以重新拿第一次的獎勵。寶石不受影響。不想歸零就改成空字串 \"\"。",
   "earn": {
-    "_說明": "歐巴幣。錯題小怪、魔王還沒做，那兩項先不會發。",
+    "_說明": "歐巴幣。一關的完整歐巴幣 = levelFirstSubmit + levelFirstPerfectPerQuestion × 題數（7 題 = 45）。wrongRates 是錯幾題拿幾成：[全對, 錯 1 題, 錯 2 題]，後面沒寫的（錯 3 題以上）都是 0，打折後無條件捨去。之後寫得更好會補發差額，最多補到完整。已全對過的關卡，每天再寫一次給 levelRepeatPerfectDaily，一樣照錯幾題打折。錯題小怪、魔王還沒做，那兩項先不會發。",
     "firstLoginGift": 50,
     "levelFirstSubmit": 10,
     "levelFirstPerfectPerQuestion": 5,
     "levelRepeatPerfectDaily": 5,
+    "wrongRates": [1, 0.9, 0.5],
     "defeatMistakeMonster": 8,
     "defeatBoss": 100,
     "quizGamePerCorrect": 1,

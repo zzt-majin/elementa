@@ -7,6 +7,11 @@
 //   { id, at: 毫秒, level: 關卡代號, island: 島的代號（math…）, score, total, kind: 'level' | 'retry' | 'game' }
 //   id 和送到試算表的編號一樣，本機和雲端的紀錄靠它合併。
 // 一筆花費（spend）：{ id, at, coins, gems: { math: 60 } }
+//
+// 測驗的歐巴幣（2026-11-27 家長定）：一關的「完整歐巴幣」= 第一次交卷 + 每題 × 題數（7 題 = 45）。
+// 全對拿完整；錯 1 題 9 折、錯 2 題 5 折（無條件捨去）；錯 3 題以上 0。
+// 之後寫得更好，補發差額（最多補到完整）。已全對過的關卡，每天再寫一次也照同樣的折扣給「每天再全對」那一份。
+// coinsResetAt：這個時間以前的作答不算歐巴幣（也不給見面禮），以前寫過的關卡可以重新拿第一次的獎勵；寶石照算。
 
 export const DEFAULTS = {
   firstLoginGift: 50,
@@ -20,6 +25,7 @@ export const DEFAULTS = {
   gemFirstPerfectBonus: 5,
   gemGameEvery: 5,
   gemDailyCapPerIsland: 30,
+  wrongRates: [1, 0.9, 0.5],
 };
 
 /** 把 config/economy.json 讀成規則；數字不合理就用預設 */
@@ -41,6 +47,13 @@ export function economyRules(raw = {}) {
     gemGameEvery: n(gem.gameEveryCorrect, 0, 100, D.gemGameEvery), // 0 表示搶答賽不給寶石
     gemDailyCapPerIsland: n(gem.dailyCapPerIsland, 0, 10000, D.gemDailyCapPerIsland), // 0 表示沒有上限
   };
+  // 錯幾題拿幾成：[全對, 錯 1 題, 錯 2 題, …]，後面沒寫的都是 0
+  const rates = Array.isArray(earn.wrongRates) ? earn.wrongRates : null;
+  rules.wrongRates = rates && rates.length && rates.length <= 50 && rates.every((v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1)
+    ? rates.map(Number) : D.wrongRates.slice();
+  // 歐巴幣歸零的時間：ISO 時間字串，例如 2026-11-27T18:00:00+08:00；空白就不歸零
+  const resetAt = typeof raw.coinsResetAt === 'string' && raw.coinsResetAt ? Date.parse(raw.coinsResetAt) : NaN;
+  rules.coinsResetAt = Number.isFinite(resetAt) ? resetAt : 0;
   // 寶石名稱：每座島一種（照 subjects.json 的島代號）
   rules.gems = {};
   for (const [code, g] of Object.entries(obj(raw.gems))) {
@@ -85,11 +98,15 @@ export function cleanEntry(e) {
 export function computeWallet({ history = [], spends = [], rules, islandOf = () => '', dayOf = localDay }) {
   const r = rules || economyRules({});
   const list = history.map(cleanEntry).filter(Boolean).sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  const levels = new Map(); // 關卡代號 → { perfect, repeatDay, gemDay, gemBest }
-  const gameBest = new Map(); // 島 → 最高分
+  const levels = new Map(); // 關卡代號 → { gemDay, gemBest }（寶石）
+  const coinLv = new Map(); // 關卡代號 → { paid 第一次的獎勵已給多少, perfect, perfectDay, day, dayPaid }（歐巴幣，歸零後才開始記）
+  const gameBest = new Map(); // 島 → 最高分（歸零後才開始記）
   const gameCoinsByDay = new Map();
   const gemsByDay = new Map(); // 島|日期 → 已拿幾顆
-  const earned = { coins: r.firstLoginGift, gems: {} };
+  const reset = r.coinsResetAt || 0;
+  const earned = { coins: reset ? 0 : r.firstLoginGift, gems: {} };
+  const rates = r.wrongRates || DEFAULTS.wrongRates;
+  const rateOf = (score, total) => rates[total - score] ?? 0;
   const events = [];
 
   for (const e of list) {
@@ -98,27 +115,39 @@ export function computeWallet({ history = [], spends = [], rules, islandOf = () 
     const day = dayOf(e.at);
     let coins = 0;
     let gems = 0;
+    const coinsCount = e.at >= reset; // 歸零以前的作答不算歐巴幣
     if (e.kind === 'game') {
-      const prev = gameBest.get(island);
-      let c = e.score * r.quizGamePerCorrect + (prev !== undefined && e.score > prev ? r.quizGameNewRecord : 0);
-      const usedToday = gameCoinsByDay.get(day) || 0;
-      c = Math.max(0, Math.min(c, r.quizGameDailyCap - usedToday));
-      gameCoinsByDay.set(day, usedToday + c);
-      coins += c;
-      if (prev === undefined || e.score > prev) gameBest.set(island, e.score);
+      if (coinsCount) {
+        const prev = gameBest.get(island);
+        let c = e.score * r.quizGamePerCorrect + (prev !== undefined && e.score > prev ? r.quizGameNewRecord : 0);
+        const usedToday = gameCoinsByDay.get(day) || 0;
+        c = Math.max(0, Math.min(c, r.quizGameDailyCap - usedToday));
+        gameCoinsByDay.set(day, usedToday + c);
+        coins += c;
+        if (prev === undefined || e.score > prev) gameBest.set(island, e.score);
+      }
       if (r.gemGameEvery > 0) gems += Math.floor(e.score / r.gemGameEvery);
     } else {
       let s = levels.get(e.level);
-      if (!s) { s = { perfect: false, repeatDay: '', gemDay: '', gemBest: 0 }; levels.set(e.level, s); coins += r.levelFirstSubmit; }
+      if (!s) { s = { perfect: false, gemDay: '', gemBest: 0 }; levels.set(e.level, s); }
       const perfect = e.score >= e.total;
-      if (perfect && !s.perfect) {
-        s.perfect = true;
-        s.repeatDay = day; // 第一次全對那天，再全對不另外給
-        coins += r.levelFirstPerfectPerQuestion * e.total;
-        gems += r.gemFirstPerfectBonus;
-      } else if (perfect && s.repeatDay !== day) {
-        s.repeatDay = day;
-        coins += r.levelRepeatPerfectDaily;
+      if (perfect && !s.perfect) { s.perfect = true; gems += r.gemFirstPerfectBonus; }
+      if (coinsCount) {
+        let c = coinLv.get(e.level);
+        if (!c) { c = { paid: 0, perfect: false, perfectDay: '', day: '', dayPaid: 0 }; coinLv.set(e.level, c); }
+        const rate = rateOf(e.score, e.total);
+        if (!c.perfect) {
+          // 還沒全對過：完整 = 第一次交卷 + 每題 × 題數，照錯幾題打折，補發比之前多的部分
+          const full = r.levelFirstSubmit + r.levelFirstPerfectPerQuestion * e.total;
+          const due = perfect ? full : Math.floor(full * rate);
+          if (due > c.paid) { coins += due - c.paid; c.paid = due; }
+          if (perfect) { c.perfect = true; c.perfectDay = day; } // 第一次全對那天，不再給「每天再全對」
+        } else if (c.perfectDay !== day) {
+          // 已全對過：每天一份「再全對」，一樣照錯幾題打折，當天寫更好就補差額
+          if (c.day !== day) { c.day = day; c.dayPaid = 0; }
+          const due = Math.floor(r.levelRepeatPerfectDaily * rate);
+          if (due > c.dayPaid) { coins += due - c.dayPaid; c.dayPaid = due; }
+        }
       }
       // 寶石：每關每天只算當天最好的一次（多答對的題數才補給）
       if (s.gemDay !== day) { s.gemDay = day; s.gemBest = 0; }
