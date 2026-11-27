@@ -84,7 +84,15 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
     clockEl = el('div', 'clock');
     clockEl.setAttribute('role', 'timer');
     clockEl.setAttribute('aria-label', T.timeLeft);
-    bar.append(title, clockEl);
+    // 上方右邊：重新開始、離開、交卷，最右邊是計時
+    const tools = el('div', 'quiz-tools');
+    tools.append(
+      button(T.restart, 'btn ghost small', () => ask('restart', () => start(level, { only: session.retry ? session.order : null }))),
+      button(T.leave, 'btn ghost small', () => ask('leave', () => { hide(); onClose?.(); })),
+      button(T.submit, 'btn submit', trySubmit),
+      clockEl,
+    );
+    bar.append(title, tools);
     updateClock(secondsLeft(session));
 
     const dots = el('div', 'dots');
@@ -144,14 +152,10 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
       button(T.prev, 'btn ghost', () => move(session.current - 1), { disabled: session.current === 0 }),
       button(T.next, 'btn ghost', () => move(session.current + 1), { disabled: session.current === n - 1 }),
     );
-    const extra = el('div', 'side');
-    extra.append(
-      button(T.restart, 'btn ghost small', () => ask('restart', () => start(level, { only: session.retry ? session.order : null }))),
-      button(T.leave, 'btn ghost small', () => ask('leave', () => { hide(); onClose?.(); })),
-    );
-    nav.append(side, button(T.submit, 'btn submit', trySubmit));
+    nav.append(side);
 
-    show([bar, dots, card, warnBox, nav, extra]);
+    // 提醒（還有幾題沒寫、確定要重新開始嗎…）放在按鈕下面，按了馬上看得到
+    show([bar, warnBox, dots, card, nav]);
     if (focus && input) input.focus();
   }
 

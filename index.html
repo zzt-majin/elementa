@@ -25,7 +25,15 @@
     <div id="kids" class="chips" hidden></div>
     <div id="wallet" class="wallet" hidden aria-live="polite"></div>
     <button id="map" class="btn small map-btn" type="button" aria-pressed="false"></button>
-    <button id="mute" class="btn ghost small" type="button"></button>
+    <section id="clock" class="clockbox" aria-label="時鐘與音樂">
+      <div class="clock-row">
+        <button id="song-prev" class="clock-arrow" type="button"><svg width="18" height="20" viewBox="0 0 18 20" aria-hidden="true"><path d="M15 2 L3 10 L15 18 Z"/></svg></button>
+        <span id="clock-time" class="clock-time" role="timer">--:--</span>
+        <button id="song-next" class="clock-arrow" type="button"><svg width="18" height="20" viewBox="0 0 18 20" aria-hidden="true"><path d="M3 2 L15 10 L3 18 Z"/></svg></button>
+      </div>
+      <p id="song-name" class="song-name" aria-live="polite"></p>
+      <button id="mute" class="mute-btn" type="button"></button>
+    </section>
   </header>
   <button id="enter" class="enter" type="button" hidden></button>
   <p id="hint" class="hint"></p>

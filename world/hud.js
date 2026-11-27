@@ -8,6 +8,13 @@ export function createHud(root, text) {
   const panelBody = $('#panel-body');
   const kidsBox = $('#kids');
   const muteBtn = $('#mute');
+  const clockTime = $('#clock-time');
+  const songName = $('#song-name');
+  const prevBtn = $('#song-prev');
+  const nextBtn = $('#song-next');
+  const clockBox = $('#clock');
+  let songFlashTimer = null;
+  let clockTimer = null;
   const hint = $('#hint');
   const errorBox = $('#errors');
   const walletBox = $('#wallet');
@@ -17,6 +24,11 @@ export function createHud(root, text) {
   let flashTimer = null;
   if (enterBtn) enterBtn.addEventListener('click', () => enterAction?.());
   $('#site-title').textContent = text.siteTitle;
+  // 上方列多高（時鐘比較高，手機上會換行）：面板和登入卡片放在它下面，不會蓋住時鐘
+  const topBar = root.querySelector('.top');
+  const syncTop = () => document.documentElement.style.setProperty('--hud-top', (topBar ? topBar.offsetHeight : 68) + 'px');
+  syncTop();
+  if (topBar && typeof ResizeObserver === 'function') new ResizeObserver(syncTop).observe(topBar);
   hint.textContent = text.hint;
 
   function el(tag, cls, content) {
@@ -26,6 +38,18 @@ export function createHud(root, text) {
     return e;
   }
   const fill = (s, vals) => String(s).replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
+  /** 喇叭小圖示：off = 按了會關掉（喇叭打叉）、on = 按了會打開（喇叭有聲波） */
+  function icon(kind) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '18');
+    svg.setAttribute('height', '18');
+    svg.setAttribute('aria-hidden', 'true');
+    const d = ['M4 9h4l5-4v14l-5-4H4z', kind === 'off' ? 'M17 9l5 6M22 9l-5 6' : 'M17 8a5 5 0 0 1 0 8M20 5a9 9 0 0 1 0 14'];
+    for (const x of d) { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', x); svg.append(p); }
+    return svg;
+  }
 
   function open(nodes, onBack) {
     if (enterBtn) enterBtn.hidden = true;
@@ -178,10 +202,46 @@ export function createHud(root, text) {
       walletBox.setAttribute('aria-label', [fill(T.coinsLabel || '{n}', { n: w.coins }), ...w.gems.map((g) => g.name + ' ' + g.n)].join('，'));
     },
 
-    setMute(muted, onToggle) {
-      muteBtn.textContent = muted ? text.muteOn : text.muteOff;
-      muteBtn.setAttribute('aria-pressed', String(muted));
-      muteBtn.onclick = onToggle;
+    /**
+     * 右上角的時鐘＋音樂：m = { muted, index, count, name, flash }；
+     * on = { prev, next, toggle }。flash = true 時歌名那行先寫「第 2 首・小海浪」，2 秒後變回「♪ 小海浪」
+     */
+    setMusic(m, on) {
+      const M = text.music || {};
+      if (!clockBox) return;
+      clockBox.classList.toggle('off', !!m.muted);
+      muteBtn.replaceChildren(icon(m.muted ? 'on' : 'off'), el('span', '', m.muted ? M.on : M.off));
+      muteBtn.setAttribute('aria-pressed', String(!!m.muted));
+      muteBtn.onclick = on.toggle;
+      prevBtn.setAttribute('aria-label', M.prev || '');
+      nextBtn.setAttribute('aria-label', M.next || '');
+      prevBtn.title = M.prev || '';
+      nextBtn.title = M.next || '';
+      prevBtn.onclick = on.prev;
+      nextBtn.onclick = on.next;
+      prevBtn.hidden = nextBtn.hidden = m.count < 2;
+      clearTimeout(songFlashTimer);
+      const plain = m.muted ? (M.mutedLine || '') : fill(M.song || '{name}', { name: m.name });
+      if (m.flash && m.name) {
+        songName.textContent = fill(M.songFlash || '{name}', { n: m.index + 1, total: m.count, name: m.name });
+        songFlashTimer = setTimeout(() => { songName.textContent = plain; }, 2000);
+      } else {
+        songName.textContent = plain;
+      }
+    },
+
+    /** 時鐘開始走：format(ms) 回傳 21:05 這樣的字，每換一分鐘更新 */
+    startClock(format, label, msToNext) {
+      if (!clockTime) return;
+      clearTimeout(clockTimer);
+      const tick = () => {
+        const now = Date.now();
+        const t = format(now);
+        clockTime.textContent = t;
+        clockTime.setAttribute('aria-label', fill(label || '{t}', { t }));
+        clockTimer = setTimeout(tick, msToNext(now));
+      };
+      tick();
     },
 
     /** 點到島：列出三棟建築 */

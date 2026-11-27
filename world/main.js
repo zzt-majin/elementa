@@ -14,6 +14,7 @@ import { bridgeConfig, bridgeLine, bridgeStrip, makeBridge, makeBridgeSite, make
 import { bridgePlan, reachable, canStart, createBuildBook } from '../engine/build.js';
 import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
+import { clockText, msToNextMinute } from './clock.js';
 import { createQuizUI } from './quiz-ui.js';
 import { createCardsUI } from './cards-ui.js';
 import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
@@ -50,7 +51,7 @@ async function getJSON(url) {
  *   world.builds.merge(kid, builds)＋world.refreshBuilds(kid)：雲端回傳建設時，合併後重畫橋、重算歐巴幣。
  */
 export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
-  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig] = await Promise.all([
+  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig, musicLoaded] = await Promise.all([
     ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
     getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
     getJSON(configPath + 'cards.json').catch(() => ({})), // 沒有 cards.json 就用引擎預設
@@ -58,6 +59,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     getJSON(configPath + 'game.json').catch(() => ({})), // 沒有 game.json 就用搶答賽預設
     getJSON(configPath + 'economy.json').catch(() => ({})), // 歐巴幣、寶石、建設價格
     getJSON(configPath + 'family.json').catch(() => ({})), // 家裡有哪些小孩（還沒有關卡的也能登入）
+    getJSON(configPath + 'music.json').catch(() => ({})), // 背景音樂的歌單和時鐘的時區
   ]);
   const presets = (Array.isArray(mixConfig?.presets) ? mixConfig.presets : [])
     .map((p) => ({ count: Math.round(Number(p.count)), minutes: Number(p.minutes) }))
@@ -722,21 +724,28 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     canvas.style.cursor = mode === 'walk' || hitAt(e) ? 'pointer' : 'grab';
   });
 
-  // 音樂：第一次點畫面才開始（瀏覽器規定）
-  const music = createMusicBox(world.music, { muted: store.get('muted') === '1' });
+  // 音樂：第一次點畫面才開始（瀏覽器規定）。右上角：時鐘（24 小時制，config/music.json 的 timeZone，預設台灣時間）＋換歌＋關掉音樂
+  const musicConfig = musicLoaded || {};
+  const music = createMusicBox(musicConfig, { muted: store.get('muted') === '1', song: Number(store.get('song')) || 0 });
+  const tz = typeof musicConfig.timeZone === 'string' && musicConfig.timeZone ? musicConfig.timeZone : 'Asia/Taipei';
+  hud.startClock((ms) => clockText(ms, tz), text.music?.clockLabel, msToNextMinute);
+  const showMusic = (flash = false) => hud.setMusic({ muted: music.muted, index: music.index, count: music.count, name: music.name, flash }, {
+    prev() { music.prev(); store.set('song', String(music.index)); showMusic(true); },
+    next() { music.next(); store.set('song', String(music.index)); showMusic(true); },
+    toggle() {
+      music.setMuted(!music.muted);
+      store.set('muted', music.muted ? '1' : '0');
+      music.start();
+      showMusic();
+    },
+  });
+  showMusic();
   const startGate = hudRoot.querySelector('#start');
   const startText = document.createElement('span');
   startText.textContent = text.tapToStart;
   startGate.replaceChildren(startText);
   startGate.hidden = false;
   startGate.addEventListener('click', () => { startGate.hidden = true; music.start(); }, { once: true });
-  const syncMute = () => hud.setMute(music.muted, () => {
-    music.setMuted(!music.muted);
-    store.set('muted', music.muted ? '1' : '0');
-    music.start();
-    syncMute();
-  });
-  syncMute();
 
   loading.hidden = true;
   setMode('walk');

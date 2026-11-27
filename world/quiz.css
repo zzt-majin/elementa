@@ -4,6 +4,7 @@
 .quiz-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .quiz-bar h2 { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .quiz-bar .tag { font-family: "Noto Sans TC", sans-serif; }
+.quiz-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-left: auto; }
 .clock { font: 700 32px/1.4 "LXGW WenKai TC", serif; font-variant-numeric: tabular-nums; padding: 0 16px; border-radius: 14px; background: #fff; color: var(--deep); box-shadow: 0 3px 0 var(--soft); }
 .clock.low { color: #d3243b; box-shadow: 0 3px 0 #ffb3bd; }
 .dots { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -50,7 +51,13 @@
 .lv-act .btn { margin-top: 0; }
 .best { font-size: 13px; opacity: .8; }
 .best.won { color: #1c8757; opacity: 1; font-weight: 700; }
-@media (max-width: 480px) { .opts { grid-template-columns: 1fr; } .clock { font-size: 26px; } }
+@media (max-width: 480px) {
+  .opts { grid-template-columns: 1fr; } .clock { font-size: 26px; padding: 0 10px; }
+  /* 手機：重新開始、離開、交卷、計時擠在同一行 */
+  .quiz-tools { gap: 6px; flex-wrap: nowrap; }
+  .quiz-tools .btn { padding: 0 10px; }
+  .quiz-tools .btn.submit { min-width: 0; padding: 0 14px; }
+}
 
 /* 交卷、搶答賽結束時的「獲得 …」 */
 .reward { font-weight: 700; color: #b8860b; background: #fff6d6; border-radius: 10px; padding: 8px 12px; }

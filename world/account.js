@@ -102,7 +102,7 @@ function createLoginUI(hudRoot, t, { kid, cloud, status, later }) {
   // 上方列的小標籤：已登入／登入
   const chip = el('div', 'account');
   const top = hudRoot.querySelector('.top');
-  top.insertBefore(chip, top.querySelector('#mute'));
+  top.insertBefore(chip, top.querySelector('#clock') || top.querySelector('#mute'));
 
   // 登入卡片：放在「點一下出發」前面，第一次點畫面仍然先開音樂
   const card = el('section', 'login-card');
