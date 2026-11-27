@@ -8,6 +8,8 @@
 //   id 和送到試算表「建設」工作表的編號一樣，本機和雲端靠它合併。
 
 export const KINDS = ['bridge', 'road'];
+/** 連到姐妹群島的公路只有一條，兩人共有：代號固定是 road */
+export const ROAD_KEY = 'road';
 
 /** 整理一筆建設；不合格回傳 null */
 export function cleanBuild(b) {
@@ -86,6 +88,27 @@ export function canStart(bridge, reach) {
 }
 
 /**
+ * 公路蓋好了沒（兩人共有）：看全部小孩的建設本，誰最早蓋的就算誰的。
+ * lists：{ 小孩: [build, …] }。回傳 { kid, build } 或 null。
+ * 兩台裝置沒連網時兩個人都蓋了：只算最早的那一個人，另一個人的花費也照樣扣（兩人都按了確定）。
+ */
+export function sharedRoad(lists) {
+  let best = null;
+  for (const [kid, list] of Object.entries(obj(lists))) {
+    const r = effectiveBuilds(list).find((b) => b.kind === 'road' && b.key === ROAD_KEY);
+    if (r && (!best || r.at < best.build.at || (r.at === best.build.at && r.id < best.build.id))) best = { kid, build: r };
+  }
+  return best;
+}
+
+/** 公路的價錢：config/economy.json 的 build.road（歐巴幣＋寶石） */
+export function roadPrice(rule) {
+  const gems = {};
+  for (const [k, v] of Object.entries(obj(rule?.gems))) { const n = Math.floor(Number(v)); if (n > 0) gems[k] = n; }
+  return { coins: Math.max(0, Math.floor(Number(rule?.coins)) || 0), gems };
+}
+
+/**
  * 每個小孩的建設本。storage 要有 load() / save(obj)（和 engine/progress.js 一樣）。
  * 資料格式：{ 小孩: [build, …] }
  */
@@ -99,6 +122,8 @@ export function createBuildBook(storage) {
     effective: (kid) => effectiveBuilds(listOf(kid)),
     /** 蓋好的 key */
     built: (kid) => new Set(effectiveBuilds(listOf(kid)).map((b) => b.key)),
+    /** 公路（兩人共有）：kids 裡誰最早蓋的，回傳 { kid, build } 或 null */
+    road: (kids) => sharedRoad(Object.fromEntries((kids || []).map((k) => [k, listOf(k)]))),
     /** 這台裝置剛蓋的。同一個 key 已經蓋過就不收，回傳 false */
     add(kid, build) {
       const b = cleanBuild(build);

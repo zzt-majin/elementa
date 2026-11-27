@@ -57,7 +57,21 @@ ok(messy.days.length === 0, '沒有介紹的紀念日不顯示');
 ok(parseDaybook('## 生日 A\n介紹：x\n'.repeat(9)).people.length === 6, '一天最多 6 位');
 ok(parseDaybook('').people.length === 0 && parseDaybook(null).days.length === 0, '空檔案');
 ok(parseDaybook('## 生日 A\n介紹：' + 'x'.repeat(900)).people[0].text.length === 400, '太長的字截斷');
-ok(ICONS.length === 18, '18 種圖案');
+ok(ICONS.length === 30, '30 種圖案');
+ok(parseDaybook('## 生日 A\n圖案：書本\n介紹：x').people[0].icon === '書', '「書本」也認得（就是「書」）');
+ok(parseDaybook('## 生日 A\n\n圖案：獅子\n\n介紹：x').people[0].icon === '獅子', '標題和欄位中間有空行也讀得到');
+{
+  // 家長寫的 11-28～11-30：每一筆的圖案都認得（不會變成星星）
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const dir = new URL('../content/calendar/', import.meta.url);
+  for (const f of readdirSync(dir).filter((x) => /^\d\d-\d\d\.md$/.test(x))) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    const raw = [...src.matchAll(/^圖案[:：]\s*(.+)$/gm)].map((m) => m[1].trim());
+    const b = parseDaybook(src, { maxPeople: 6, maxDays: 4 });
+    const got = [...b.people, ...b.days].map((x) => x.icon);
+    ok(got.length === raw.length && got.every((i, k) => i !== '星星' || raw[k] === '星星'), f + ' 的圖案都認得：' + got.join('、'));
+  }
+}
 
 console.log(`calendar: ${pass} 通過` + (fail.length ? `，${fail.length} 失敗：\n- ` + fail.join('\n- ') : ''));
 if (fail.length) process.exit(1);

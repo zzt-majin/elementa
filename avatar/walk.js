@@ -169,6 +169,23 @@ export function surfaceAt(p, area, top = 0.9) {
   return { y: top + (sand - top) * k, beach: k > 0.5 };
 }
 
+/**
+ * 走在這裡快幾倍：站在有 fast 的長條（公路）上、而且不在草地上時是 fast，其他地方是 1。
+ * grounds 的長條寫 { type: 'strip', …, fast: 1.8 }。
+ */
+export function speedFactor(p, area) {
+  const grounds = groundsOf(area);
+  let k = 1;
+  for (const g of grounds) {
+    if (g.type !== 'strip' || !(g.fast > 1)) continue;
+    const q = stripLocal(p, g);
+    if (q.t < 0 || q.t > q.len || Math.abs(q.side) > g.half + 1e-6) continue;
+    if (grounds.some((c) => c.type === 'circle' && Math.hypot(p.x - c.cx, p.z - c.cz) <= (c.grassR ?? c.r))) continue;
+    k = Math.max(k, g.fast);
+  }
+  return k;
+}
+
 /** 從 p 往 dir（會先變成長度 1）走 dist 這麼遠，回傳走完的位置 */
 export function step(p, dir, dist, area, body = 0.35) {
   const len = Math.hypot(dir.x, dir.z);
@@ -270,7 +287,7 @@ export function createWalker(start, opts = {}) {
           arrived = true;
         } else {
           move = { x: dx / d, z: dz / d };
-          const want = Math.min(d, speed * dt);
+          const want = Math.min(d, speed * speedFactor(s, area) * dt);
           const next = step(s, move, want, area, body);
           const got = Math.hypot(next.x - s.x, next.z - s.z);
           s.stuck = got < want * 0.3 ? s.stuck + dt : 0;
@@ -287,7 +304,7 @@ export function createWalker(start, opts = {}) {
         s.moving = 0;
         return { arrived };
       }
-      const next = step(s, move, speed * dt, area, body);
+      const next = step(s, move, speed * speedFactor(s, area) * dt, area, body);
       s.moving = dt ? Math.hypot(next.x - s.x, next.z - s.z) / dt : 0;
       s.heading = turnToward(s.heading, headingOf(move), Math.min(1, dt * 12));
       s.x = next.x; s.z = next.z;

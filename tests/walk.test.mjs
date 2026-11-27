@@ -1,6 +1,6 @@
 // 用 Node 跑：node tests/walk.test.mjs
 // 小公主走路：不能走出草地、不能穿過建築、會沿著邊滑、點地面走過去、門口判斷、方向鍵對應畫面方向。
-import { resolve, step, nearestDoor, screenToGround, createWalker, turnToward, clampTarget, groundAt, routeVia, surfaceAt } from '../avatar/walk.js';
+import { resolve, step, nearestDoor, screenToGround, createWalker, turnToward, clampTarget, groundAt, routeVia, surfaceAt, speedFactor } from '../avatar/walk.js';
 
 let pass = 0;
 const fail = [];
@@ -155,6 +155,23 @@ const body = 0.35;
   for (let i = 0; i < 120; i++) w = step(w, { x: 0, z: 1 }, 0.5, a, body);
   ok(Math.abs(w.z - (25 - body)) < 1e-6, '一直往海邊走：停在沙灘邊');
   ok(surfaceAt({ x: 1, z: 1 }, { cx: 0, cz: 0, radius: 10, obstacles: [] }).y === 0.9, '舊的一座島寫法：都算草地');
+}
+
+// 公路：走在上面比較快（草地上一樣快），點對岸會沿著公路走過去
+{
+  const road = { grounds: [
+    { type: 'circle', cx: 0, cz: 0, r: 25, grassR: 22 },
+    { type: 'circle', cx: 0, cz: 150, r: 25, grassR: 22 },
+    { type: 'strip', ax: 0, az: 20, bx: 0, bz: 130, half: 2, fast: 1.8 },
+  ], obstacles: [] };
+  ok(speedFactor({ x: 0, z: 75 }, road) === 1.8, '公路上快 1.8 倍');
+  ok(speedFactor({ x: 0, z: 21 }, road) === 1 && speedFactor({ x: 5, z: 0 }, road) === 1, '公路伸進草地的那段、島上都是一樣快');
+  ok(speedFactor({ x: 3, z: 75 }, road) === 1, '不在公路上就不加快');
+  const w = createWalker({ x: 0, z: 60 }, { speed: 4 });
+  w.update(0.5, { x: 0, z: 1 }, road);
+  ok(Math.abs(w.z - 63.6) < 0.05, '公路上半秒走 3.6 公尺：' + w.z.toFixed(2));
+  const via = routeVia({ x: 0, z: 0 }, { x: 5, z: 150 }, road);
+  ok(via.length === 2 && via[1].z === 130, '點對方的島：沿著公路走過去');
 }
 
 console.log(`walk: ${pass} 通過` + (fail.length ? `，${fail.length} 失敗：\n- ` + fail.join('\n- ') : ''));

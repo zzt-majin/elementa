@@ -36,8 +36,9 @@ export function cloudSettings(raw = {}) {
  * onProgress(kid, progress, settings)：後台回傳進度時呼叫，外面拿去合併
  * onHistory(kid, history)：後台回傳作答紀錄時呼叫（歐巴幣、寶石用），格式見 engine/economy.js
  * onBuilds(kid, builds)：後台回傳建設（蓋好的橋）時呼叫，格式見 engine/build.js
+ * onFamilyBuilds(family)：後台回傳家裡其他小孩的建設（{ 妹妹: [...] }）時呼叫：公路兩人共有、對方的橋畫在對方的群島上
  */
-export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onProgress = () => {}, onHistory = () => {}, onBuilds = () => {}, now = () => Date.now() }) {
+export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onProgress = () => {}, onHistory = () => {}, onBuilds = () => {}, onFamilyBuilds = () => {}, now = () => Date.now() }) {
   const enabled = !!settings.api;
   const SES = 'session', QUE = 'queue', SET = 'settings';
   let flushing = null;
@@ -75,6 +76,11 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
     if (r.progress && typeof r.progress === 'object') onProgress(kid, r.progress, r.settings || null);
     if (Array.isArray(r.history)) onHistory(kid, r.history);
     if (Array.isArray(r.builds)) onBuilds(kid, r.builds);
+    if (r.family && typeof r.family === 'object' && !Array.isArray(r.family)) {
+      const fam = {};
+      for (const [k, v] of Object.entries(r.family)) if (k !== kid && Array.isArray(v)) fam[k] = v;
+      if (Object.keys(fam).length) onFamilyBuilds(fam);
+    }
   }
 
   const api = {

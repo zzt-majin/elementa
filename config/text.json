@@ -267,7 +267,7 @@
     "clockLabel": "台灣時間 {t}"
   },
   "calendar": {
-    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記。",
+    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記；road 開頭的是蓋好公路時的，{other} 是公路通到誰的群島。",
     "yearLine": "{y}・{gz}年・生肖屬{animal}",
     "label": "今天的日曆：{date}",
     "birthdays": "今天生日",
@@ -283,6 +283,39 @@
     "write": "寫進日記",
     "bridgeTitle": "恭喜完成第{nth}座橋！",
     "bridgeBody": "{from}和{to}連起來了，小公主可以走過去探險囉！",
-    "bridgeDiary": "{m}/{d} 蓋了第{nth}座橋！"
+    "bridgeDiary": "{m}/{d} 蓋了第{nth}座橋！",
+    "roadTitle": "恭喜完成公路！",
+    "roadBody": "公路通到{other}的群島了！現在可以走過去，到{other}的島上玩、練習囉！",
+    "roadDiary": "{m}/{d} 蓋好了通到{other}群島的公路！",
+    "prevDay": "前一天",
+    "nextDay": "後一天",
+    "backToday": "回到今天",
+    "isToday": "今天"
+  },
+  "road": {
+    "_說明": "公路（世界設定第 5 步）：連到姐妹的群島，兩人共有。{other} 是對方的稱呼、{who} 是蓋公路的人、{coin} 是歐巴幣的名字、{price} 是價錢（例如「150 歐巴幣＋60 鑽石」）、{have} 是現在有多少、{short} 是還差多少。visit 開頭的是到對方的島上時的標示和提示。",
+    "signTitle": "蓋公路",
+    "door": "蓋到{other}群島的公路",
+    "title": "蓋一條公路到{other}的群島",
+    "body": "公路是你和{other}一起的：誰先蓋好，兩個人都能走。蓋好以後，小公主就能走到{other}的島上玩、練習。",
+    "note": "在{other}的島上做的活動都不記成績，也不會拿到{coin}和寶石。",
+    "price": "蓋公路要花 {price}",
+    "have": "你現在有 {have}",
+    "short": "還差 {short}。到測驗塔寫測驗、到遊戲帳篷玩搶答賽，就能賺{coin}和寶石！",
+    "build": "蓋公路（花 {price}）",
+    "confirm": "確定要花 {price}嗎？再按一次",
+    "built": "公路已經蓋好了（{who}蓋的），走過去就能到{other}的群島。",
+    "done": "公路蓋好了！沿著公路走到{other}的群島看看吧",
+    "joiner": "＋",
+    "archipelago": "{other}的群島",
+    "islandName": "{other}的{name}",
+    "visitTag": "拜訪中・不記成績",
+    "visitPanel": "這是{other}的島。在這裡寫測驗、看學習卡、玩搶答賽都不記成績，也不會拿到{coin}和寶石。",
+    "visitTitle": "你在{other}的島上",
+    "visitBody": "在別人的島上做的活動都不會存成績，也不會拿到{coin}、寶石或其他資源。想賺{coin}，要回到自己的島上喔！",
+    "visitGo": "我知道了，開始",
+    "visitCancel": "先不要",
+    "visitResult": "拜訪中：這次不記成績，也沒有{coin}和寶石。",
+    "needRoad": "要先蓋好通到{other}群島的公路，才能去{other}的島上。"
   }
 }

@@ -47,6 +47,12 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
         // 別台裝置蓋的橋也畫出來、也扣錢
         if (world.builds?.merge(kid, builds)) world.refreshBuilds?.(kid);
       },
+      onFamilyBuilds(family) {
+        // 家裡其他小孩蓋的橋和公路：公路兩人共有，對方的橋畫在對方的群島上（只合併，不會送回試算表）
+        let grew = false;
+        for (const [k, list] of Object.entries(family)) if (world.kids?.includes(k) && world.builds?.merge(k, list)) grew = true;
+        if (grew) world.refreshBuilds?.();
+      },
     });
     ui = createLoginUI(hudRoot, world.text.login || {}, {
       kid: () => world.kid(),

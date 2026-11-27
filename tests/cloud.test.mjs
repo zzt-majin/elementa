@@ -36,10 +36,11 @@ function fakeBackend() {
     }
     if (d.token !== tok(name)) return { ok: false, error: 'auth' };
     const mineBuilds = () => b.builds.filter((x) => x.name === name).map(({ name: _n, ...x }) => x);
+    const familyBuilds = () => { const o = {}; for (const x of b.builds) if (x.name !== name) (o[x.name] ||= []).push({ ...x, name: undefined }); return o; };
     if (d.action === 'build') {
       if (b.oldBackend) return { ok: false, error: 'bad' }; // 舊版 Code.gs 不認得
       if (!b.builds.some((x) => x.name === name && (x.id === d.id || x.key === d.key))) b.builds.push({ name, id: d.id, at: d.at, kind: d.kind, key: d.key, coins: d.coins, gems: d.gems });
-      return { ok: true, builds: mineBuilds() };
+      return { ok: true, builds: mineBuilds(), ...(b.family ? { family: familyBuilds() } : {}) };
     }
     if (d.action === 'load') return { ok: true, progress: mine(), settings: { cards: '測驗後' }, history: hist() };
     if (d.action === 'save') {
@@ -63,6 +64,7 @@ function setup(backend, extra = {}) {
   const statuses = [];
   const histories = [];
   const builds = [];
+  const family = [];
   const store = extra.store || memoryStore();
   const cloud = createCloud({
     settings: cloudSettings({ api: API, timeoutMs: 5000 }),
@@ -72,8 +74,9 @@ function setup(backend, extra = {}) {
     onProgress: (kid, p) => progress.merge(kid, p),
     onHistory: (kid, h) => histories.push([kid, h]),
     onBuilds: (kid, x) => builds.push([kid, x]),
+    onFamilyBuilds: (f) => family.push(f),
   });
-  return { cloud, progress, statuses, store, histories, builds };
+  return { cloud, progress, statuses, store, histories, builds, family };
 }
 
 const summary = (over = {}) => ({ kid: '姐姐', level: 'jie-6a-math-quiz-01', levelName: '測試', score: 5, total: 7, used: 300, timeUp: false, retry: false, ...over });
@@ -313,6 +316,19 @@ await test('不合格的建設不送', () => {
   const { cloud } = setup(b);
   assert.equal(cloud.enqueueBuild('姐姐', bridge({ key: 'Math Chinese' })), false);
   assert.equal(cloud.enqueueBuild('姐姐', bridge({ id: '<x>' })), false);
+});
+
+await test('公路兩人共有：後台回傳妹妹蓋的建設，交給 onFamilyBuilds（不含自己的）', async () => {
+  const b = fakeBackend();
+  b.family = true;
+  b.builds.push({ name: '妹妹', id: '1764230000000-road01', at: 1764230000000, kind: 'road', key: 'road', coins: 150, gems: { math: 60 } });
+  const { cloud, family } = setup(b);
+  await cloud.login('姐姐', 'pw1');
+  cloud.enqueueBuild('姐姐', bridge());
+  await cloud.flush();
+  const last = family.at(-1);
+  assert.ok(last && Array.isArray(last['妹妹']) && last['妹妹'][0].kind === 'road');
+  assert.equal(last['姐姐'], undefined);
 });
 
 console.log(passed + ' 項通過' + (process.exitCode ? '，有失敗' : ''));

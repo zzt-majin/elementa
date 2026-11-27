@@ -238,7 +238,7 @@ export function createRaceUI(root, { text, settings, onResult, onClose, onOpenCh
     card.append(score);
     card.append(el('p', '', fill(T.endLine, { total: r.total, n: r.score, streak: r.bestStreak })));
     if (r.penaltyTotal > 0) card.append(el('p', 'muted', fill(T.endPenalty, { p: Math.round(r.penaltyTotal) })));
-    if (info.saved === false) card.append(el('p', 'muted', T.notSaved));
+    if (info.saved === false) card.append(el('p', info.note ? 'reward' : 'muted', info.note || T.notSaved)); // note：例如在姐妹的島上「拜訪中，不記成績」
     else if (info.record && !isRecord) card.append(el('p', 'muted', fill(T.bestLine, { n: info.record.best })));
     if (info.saved !== false && info.rewardText) card.append(el('p', 'reward', info.rewardText));
 

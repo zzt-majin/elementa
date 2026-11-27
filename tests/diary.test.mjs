@@ -26,8 +26,15 @@ ok(list[0].body === '數學島和國語島連起來了，小公主可以走過�
 ok(list[0].day === '2026-11-27' && list[0].id === 'bridge-1', '記在 11/27');
 ok(list[1].day === '2026-12-02' && list[1].line === '12/2 蓋了第二座橋！', '照台灣時間：UTC 12/1 16:30 是 12/2');
 ok(milestones({ builds: [], plan, names, text }).length === 0, '沒蓋橋就沒有日記');
-ok(milestones({ builds: [{ id: 'r', at: 1, kind: 'road', key: 'road-1', coins: 1, gems: {} }], plan, names, text }).length === 0, '公路不算橋');
+ok(milestones({ builds: [{ id: 'r', at: 1, kind: 'road', key: 'road', coins: 1, gems: {} }, { id: 'b', at: 2, kind: 'bridge', key: 'math-chinese', coins: 1, gems: {} }], plan, names, text }).map((m) => m.id).join() === 'road,bridge-1', '公路不算成第幾座橋');
 ok(nthZh(1) === '一' && nthZh(4) === '四' && nthZh(10) === '十' && nthZh(12) === '十二' && nthZh(20) === '二十' && nthZh(23) === '二十三', '國字數字');
+
+// 公路的里程碑
+{
+  const list2 = milestones({ builds: [{ id: 'r1', at: at('2026-11-28T02:00:00Z'), kind: 'road', key: 'road', coins: 150, gems: { math: 60 } }], plan, names, text, other: '妹妹' });
+  ok(list2.length === 1 && list2[0].id === 'road' && list2[0].day === '2026-11-28', '公路：記在蓋的那一天');
+  ok(list2[0].title.includes('公路') && list2[0].line.includes('妹妹'), '公路：寫出通到誰的群島');
+}
 
 console.log(`diary: ${pass} 通過` + (fail.length ? `，${fail.length} 失敗：\n- ` + fail.join('\n- ') : ''));
 if (fail.length) process.exit(1);

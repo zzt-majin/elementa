@@ -103,8 +103,8 @@ export function createCameraRig(camera, dom, cfg) {
   return {
     update,
     flyTo,
-    /** 地圖：拉遠看全部的島 */
-    overview() { flyTo(new THREE.Vector3(center[0], 0, center[1]), cfg.overviewDistance, cfg.overviewHeight); },
+    /** 地圖：拉遠看全部的島。at = { x, z } 換一個中心（例如在姐妹的群島上時看她的群島） */
+    overview(at = null) { const c = at || { x: center[0], z: center[1] }; flyTo(new THREE.Vector3(c.x, 0, c.z), cfg.overviewDistance, cfg.overviewHeight); },
     /** 地圖模式點一座島：飛過去（scale 是島的 size） */
     focus(point, scale = 1) { flyTo(new THREE.Vector3(point.x, 1.5, point.z), cfg.focusDistance * scale, cfg.focusHeight * scale); },
     /** 跟著小公主。snap = true 時直接跳過去（一開始、換小孩） */

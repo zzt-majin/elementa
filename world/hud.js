@@ -256,8 +256,9 @@ export function createHud(root, text) {
     },
 
     /** 點到島：列出三棟建築 */
-    showIsland(island, info, buildings, onBuilding, onBack) {
+    showIsland(island, info, buildings, onBuilding, onBack, visitNote = '') {
       const nodes = [el('h2', '', island.name)];
+      if (visitNote) nodes.unshift(el('p', 'visit-note', visitNote));
       if (!info.count) {
         nodes.push(el('p', 'tag', text.construction), el('p', '', text.constructionBody));
       } else {
@@ -277,10 +278,11 @@ export function createHud(root, text) {
 
     /**
      * 點到建築：說明＋這座島的關卡。
-     * extra：{ minutes(level), best(level), onStart(level), mix, house, tent }
+     * extra：{ minutes(level), best(level), onStart(level), mix, house, tent, visitNote（在姐妹的島上：最上面的說明） }
      */
     showBuilding(island, kind, building, info, extra, onBack) {
       const nodes = [el('p', 'muted', island.name), el('h2', '', building.label)];
+      if (extra.visitNote) nodes.unshift(el('p', 'visit-note', extra.visitNote));
       nodes.push(el('p', '', text[kind + 'Body'] || ''));
       if (kind === 'tent' && extra.tent) nodes.push(tentBlock(extra.tent));
       if (kind === 'house' && extra.house) nodes.push(el('p', 'rule-line muted', extra.house.ruleText));
@@ -397,6 +399,47 @@ export function createHud(root, text) {
       back.append(box);
       root.append(back);
       ok.focus();
+    },
+
+    /**
+     * 提醒視窗（蓋在面板上面）：n = { title, tag, body, ok, cancel }。按 ok 呼叫 onOk；按 cancel 或 Esc 只關掉。
+     * 例如在姐妹的島上開始測驗前：「你在妹妹的島上，這裡的活動不記成績」
+     */
+    showNotice(n, onOk) {
+      root.querySelector('.intro-back')?.remove();
+      const back = el('div', 'intro-back');
+      const box = el('section', 'intro notice');
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-label', n.title);
+      if (n.tag) box.append(el('p', 'notice-tag', n.tag));
+      box.append(el('h2', '', n.title), el('p', 'intro-lead', n.body));
+      const row = el('div', 'notice-actions');
+      const ok = el('button', 'btn intro-ok', n.ok);
+      ok.type = 'button';
+      const no = el('button', 'btn ghost', n.cancel);
+      no.type = 'button';
+      row.append(ok, no);
+      box.append(row);
+      const close = () => back.remove();
+      ok.addEventListener('click', () => { close(); onOk?.(); });
+      no.addEventListener('click', close);
+      back.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+        if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === ok ? no : ok).focus(); }
+      });
+      back.append(box);
+      root.append(back);
+      ok.focus();
+    },
+
+    /** 上方中間的小標籤「拜訪中・不記成績」（在姐妹的島上時）；t 是空的就藏起來 */
+    setVisit(t) {
+      let tag = root.querySelector('.visit-tag');
+      if (!t) { if (tag) tag.hidden = true; return; }
+      if (!tag) { tag = el('p', 'visit-tag'); tag.setAttribute('aria-live', 'polite'); root.append(tag); }
+      tag.textContent = t;
+      tag.hidden = false;
     },
 
     /** 說明視窗是不是打開著 */

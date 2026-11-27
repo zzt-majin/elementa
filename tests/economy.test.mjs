@@ -28,7 +28,7 @@ test('config/economy.json 讀得進來，數字和設計決定一樣', () => {
   assert.equal(rules.gemGameEvery, 5);
   assert.equal(rules.gemDailyCapPerIsland, 30);
   assert.deepEqual(rules.build.bridge, { coins: 120, step: 120, gems: {} }); // 第 n 座 = 120 × n（2026-11-27 家長改）
-  assert.deepEqual(rules.build.road, { coins: 150, step: 0, gems: { math: 60 } });
+  assert.deepEqual(rules.build.road, { coins: 800, step: 0, gems: { math: 200 } }); // 2026-11-27 家長改成 800＋200
   assert.equal(rules.gems.math.name, '鑽石');
   assert.equal(Object.keys(rules.gems).length, 5);
   assert.ok(!('_說明' in rules.build));
@@ -135,9 +135,9 @@ test('扣掉蓋橋和公路的花費；夠不夠付', () => {
   assert.equal(w.coins, 50 + 5 * 45 - 120);
   assert.equal(w.gems.math, 60);
   assert.equal(canAfford(w, rules.build.bridge).ok, true);
-  assert.equal(canAfford(w, rules.build.road).ok, true);
+  assert.deepEqual(canAfford(w, rules.build.road), { ok: false, short: { coins: 645, gems: { math: 140 } } }); // 公路 800＋200 比較貴
   const poor = wallet([lv(5, 7)]);
-  assert.deepEqual(canAfford(poor, rules.build.road), { ok: false, short: { coins: 78, gems: { math: 55 } } });
+  assert.deepEqual(canAfford(poor, rules.build.road), { ok: false, short: { coins: 728, gems: { math: 195 } } });
 });
 
 test('打折：全對 45、錯 1 題 9 折 40、錯 2 題 5 折 22、錯 3 題以上 0', () => {

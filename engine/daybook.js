@@ -2,7 +2,10 @@
 // 讀每一天的名人生日和紀念日檔案（content/calendar/11-27.md），格式見 docs/日曆資料格式.md。
 // 純文字處理，不碰畫面，可以用 node 測試。
 
-export const ICONS = ['功夫', '吉他', '鍵盤', '麥克風', '書', '畫筆', '教師', '科學', '地球', '火箭', '運動', '電影', '愛心', '花', '樹', '旗子', '蛋糕', '星星'];
+export const ICONS = ['功夫', '吉他', '鍵盤', '麥克風', '書', '畫筆', '教師', '科學', '地球', '火箭', '運動', '電影', '愛心', '花', '樹', '旗子', '蛋糕', '星星',
+  '皇冠', '帆船', '木筏', '獅子', '聲波', '留聲機', '望遠鏡', '放大鏡', '鋼筆', '草帽', '鎖頭', '電腦'];
+/** 別的寫法也認得：「書本」就是「書」 */
+export const ICON_ALIASES = { 書本: '書', 書籍: '書', 筆: '鋼筆', 船: '帆船', 王冠: '皇冠', 音波: '聲波', 筆電: '電腦' };
 
 const FIELDS = { 外文名: 'foreign', 出生: 'born', 過世: 'died', 身分: 'role', 國家: 'country', 地方: 'place', 圖案: 'icon', 介紹: 'text', 小知識: 'fact' };
 const MAX = { name: 30, foreign: 60, born: 10, died: 10, role: 40, country: 40, place: 60, icon: 10, text: 400, fact: 200 };
@@ -28,7 +31,7 @@ export function parseDaybook(src, { maxPeople = 6, maxDays = 4 } = {}) {
     const key = FIELDS[kv[1].trim()];
     if (key) cur[key] = clip(kv[2], MAX[key]);
   }
-  const fix = (x) => ({ ...x, icon: ICONS.includes(x.icon) ? x.icon : '星星' });
+  const fix = (x) => { const icon = ICON_ALIASES[x.icon] || x.icon; return { ...x, icon: ICONS.includes(icon) ? icon : '星星' }; };
   return {
     people: people.filter((p) => p.name && p.text).slice(0, maxPeople).map(fix),
     days: days.filter((d) => d.name && d.text).slice(0, maxDays).map(fix),

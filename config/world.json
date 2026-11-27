@@ -39,6 +39,22 @@
     "dashColor": "#ffffff",
     "mist": { "opacity": 0.32, "height": 10, "extra": 1.06, "color": "#ffffff" }
   },
+  "road": {
+    "_說明": "連到姐妹群島的公路（世界設定第 5 步，價格在 economy.json 的 build.road）。offset 是對方的群島放在哪裡（[x, z] 公尺；[0, 150] 是往南 150 公尺，公路從數學島往南，穿過自然島和社會島中間）；fast 是走在公路上快幾倍（1 = 一樣快）。其他欄位和 bridge 一樣：width 路寬、overlap 兩頭伸進草地多深、plank 一塊路板多長、gap 縫、postEvery 每幾塊一根欄杆柱、growSeconds 蓋公路動畫幾秒、dash／dashGap 海上虛線、deck／rail／dashColor 顏色。",
+    "offset": [0, 150],
+    "fast": 1.8,
+    "width": 4,
+    "overlap": 2,
+    "plank": 2.2,
+    "gap": 0.08,
+    "postEvery": 5,
+    "growSeconds": 4.5,
+    "dash": 1.8,
+    "dashGap": 1.2,
+    "deck": "#eee4cf",
+    "rail": "#a3927c",
+    "dashColor": "#fff3b0"
+  },
   "shore": {
     "_說明": "沙灘邊的海浪：每座島外圍 rings 圈白色浪花，每 period 秒從沙灘邊往外推 push（島半徑的幾倍），width 浪花寬幾公尺，opacity 最亮多亮，height 浮在海面多高。",
     "rings": 3,

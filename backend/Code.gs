@@ -95,10 +95,10 @@ function handle_(d) {
       Utilities.sleep(500);
       return { ok: false, error: 'auth' };
     }
-    return { ok: true, token: tok, progress: progress_(name), settings: settings_(name), history: history_(name), builds: builds_(name) };
+    return { ok: true, token: tok, progress: progress_(name), settings: settings_(name), history: history_(name), builds: builds_(name), family: familyBuilds_(name) };
   }
   if (d.token !== tok) return { ok: false, error: 'auth' };
-  if (d.action === 'load') return { ok: true, progress: progress_(name), settings: settings_(name), history: history_(name), builds: builds_(name) };
+  if (d.action === 'load') return { ok: true, progress: progress_(name), settings: settings_(name), history: history_(name), builds: builds_(name), family: familyBuilds_(name) };
   if (d.action === 'save') return save_(name, d);
   if (d.action === 'build') return build_(name, d);
   return { ok: false, error: 'bad' };
@@ -154,10 +154,10 @@ function save_(name, d) {
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, progress: progress_(name), history: history_(name), builds: builds_(name) };
+  return { ok: true, progress: progress_(name), history: history_(name), builds: builds_(name), family: familyBuilds_(name) };
 }
 
-// 蓋橋（之後的公路）：記到「建設」工作表。同一個編號、或同一個小孩已經蓋過同一個代號，就不再記
+// 蓋橋、蓋公路：記到「建設」工作表。同一個編號、或同一個小孩已經蓋過同一個代號，就不再記
 // （兩台裝置都按了蓋同一座橋，只算一次）。餘額由網站從作答紀錄算，這裡只記花了多少。
 function build_(name, d) {
   const kind = String(d.kind || '');
@@ -180,23 +180,36 @@ function build_(name, d) {
   try {
     const sh = sheet_(ss, BUILDS, BUILD_HEADERS);
     const rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 8).getDisplayValues() : [];
+    // 公路是兩人共有，但照樣記在蓋的人名下：兩台裝置沒連網時兩個人都蓋了，兩筆都記（兩個人都扣錢，和網站上看到的一樣）
     const dup = rows.some(function (r) { return r[7] === id || (r[1] === name && r[3] === key); });
     if (!dup) sh.appendRow([when, name, type, key, clean_(d.keyName), coins, Object.keys(gems).length ? JSON.stringify(gems) : '', id]);
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, builds: builds_(name) };
+  return { ok: true, builds: builds_(name), family: familyBuilds_(name) };
 }
 
 // 某個小孩蓋過的東西，給網站畫橋、扣歐巴幣
 function builds_(name) {
+  return buildRows_(function (who) { return who === name; })[name] || [];
+}
+
+// 家裡其他小孩蓋過的東西（公路是兩人共有，對方的橋要畫在對方的群島上）。
+// 只回傳建設本身（蓋了哪座橋、花多少），不回傳成績和密碼。回傳 { 妹妹: [...] }
+function familyBuilds_(name) {
+  return buildRows_(function (who) { return who !== name; });
+}
+
+function buildRows_(want) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BUILDS);
-  if (!sh || sh.getLastRow() < 2) return [];
+  if (!sh || sh.getLastRow() < 2) return {};
   const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
-  const out = [];
+  const all = {};
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    if (String(r[1]) !== name) continue;
+    const who = String(r[1]);
+    if (!who || !want(who)) continue;
+    const out = all[who] || (all[who] = []);
     const kind = BUILD_KINDS[String(r[2])];
     const at = r[0] instanceof Date ? r[0].getTime() : new Date(r[0]).getTime();
     if (!kind || !isFinite(at)) continue;
@@ -204,7 +217,7 @@ function builds_(name) {
     try { gems = r[6] ? JSON.parse(String(r[6])) : {}; } catch (err) { gems = {}; }
     out.push({ id: String(r[7] || '') || 'row-' + at + '-' + r[3], at: at, kind: kind, key: String(r[3]), coins: Number(r[5]) || 0, gems: gems });
   }
-  return out;
+  return all;
 }
 
 // 某個小孩的每一次作答，給網站算歐巴幣和寶石。沒有編號的舊紀錄用「時間＋關卡」當編號

@@ -1,6 +1,6 @@
 // 用 Node 跑：node tests/build.test.mjs
 // 建設帳本：蓋橋的紀錄、同一座橋只扣一次錢、哪些島走得到、歐巴幣扣掉蓋橋的花費。
-import { cleanBuild, effectiveBuilds, bridgePlan, reachable, createBuildBook, bridgePrice } from '../engine/build.js';
+import { cleanBuild, effectiveBuilds, bridgePlan, reachable, createBuildBook, bridgePrice, sharedRoad, roadPrice, ROAD_KEY } from '../engine/build.js';
 import { computeWallet, economyRules, canAfford } from '../engine/economy.js';
 import { memoryStorage } from '../engine/progress.js';
 import { readFileSync } from 'node:fs';
@@ -71,6 +71,27 @@ const subjects = { islands: ['math', 'chinese', 'english', 'science', 'social'].
   ok(bridgePrice(rule, -2).coins === 120 && bridgePrice(null, 2).coins === 0, '奇怪的數字不會出錯');
   const real = economyRules(JSON.parse(readFileSync(new URL('../config/economy.json', import.meta.url), 'utf8'))).build.bridge;
   ok(bridgePrice(real, 1).coins === 240 && bridgePrice(real, 3).coins === 480, 'economy.json：第 2 座 240、第 4 座 480');
+}
+
+// 7. 公路：兩人共有，誰最早蓋就算誰的；錢只從蓋的人扣
+{
+  const road = (over = {}) => ({ id: 'r-1', at: 5000, kind: 'road', key: ROAD_KEY, coins: 150, gems: { math: 60 }, ...over });
+  ok(sharedRoad({}) === null && sharedRoad({ 姐姐: [b()] }) === null, '還沒蓋公路');
+  ok(sharedRoad({ 姐姐: [b(), road()], 妹妹: [] })?.kid === '姐姐', '姐姐蓋的公路');
+  ok(sharedRoad({ 姐姐: [road({ at: 9000 })], 妹妹: [road({ id: 'r-2', at: 7000 })] })?.kid === '妹妹', '兩人都蓋了：算最早的');
+  ok(sharedRoad({ 姐姐: [road({ key: 'road-x' })] }) === null, '別的代號不算公路');
+  const book = createBuildBook(memoryStorage());
+  book.add('妹妹', road());
+  ok(book.road(['姐姐', '妹妹'])?.kid === '妹妹' && book.road(['姐姐']) === null, '建設本：看全部小孩');
+  ok(!book.add('妹妹', road({ id: 'r-3' })), '同一個人不會蓋第二條');
+  const rules = economyRules(JSON.parse(readFileSync(new URL('../config/economy.json', import.meta.url), 'utf8')));
+  const p = roadPrice(rules.build.road);
+  ok(p.coins === 800 && p.gems.math === 200, 'economy.json：公路 800 歐巴幣＋200 鑽石');
+  ok(roadPrice(null).coins === 0 && !Object.keys(roadPrice(null).gems).length, '沒有設定：0');
+  const w = computeWallet({ history: [], spends: book.effective('妹妹'), rules });
+  ok(w.coins === -150 && w.gems.math === -60, '公路的錢從蓋的人扣（照紀錄寫的扣）');
+  ok(computeWallet({ history: [], spends: book.effective('姐姐'), rules }).coins === 0, '另一個人不扣');
+  ok(!canAfford({ coins: 900, gems: { math: 199 } }, p).ok && canAfford({ coins: 800, gems: { math: 200 } }, p).ok, '鑽石不夠不能蓋');
 }
 
 console.log(`build: ${pass} 通過` + (fail.length ? `，${fail.length} 失敗：\n- ` + fail.join('\n- ') : ''));
