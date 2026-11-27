@@ -5,8 +5,9 @@
 // 純邏輯，瀏覽器和 Node 都能用。數字範圍由外面傳進來（config/generators/*.json）。
 import { createRng, newSeed } from './rng.js';
 import { MATH_TYPES, isRetry } from './generators/math.js';
+import { MATH_G4_TYPES } from './generators/math-g4.js'; // 四上數學（代號 g4- 開頭）
 
-const REGISTRY = { ...MATH_TYPES };
+const REGISTRY = { ...MATH_TYPES, ...MATH_G4_TYPES };
 
 /** 之後國語、英語的產生器用這個加進來 */
 export function registerTypes(types) { Object.assign(REGISTRY, types); }

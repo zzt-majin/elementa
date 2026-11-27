@@ -72,6 +72,15 @@ const RECHECK = {
     const part = m[3] === m[1] ? Number(p) : Number(r);
     return F(Number(x) / part * (Number(p) + Number(r)));
   },
+  // 2026-11-26 新增
+  'two-discount-compare': (q, [p]) => {
+    const map = { 九: '0.9', 八五: '0.85', 八: '0.8', 七五: '0.75', 七: '0.7', 六五: '0.65', 六: '0.6', 五: '0.5' };
+    const m = q.text.match(/甲店原價打(.+?)折，乙店原價打(.+?)折/);
+    const rA = fromDecimal(map[m[1]]), rB = fromDecimal(map[m[2]]);
+    const d = rA.n * rB.d >= rB.n * rA.d ? sub(rA, rB) : sub(rB, rA);
+    return mul(val(p), d);
+  },
+  'two-part-diff': (q, [T, p]) => mul(F(Number(T)), F(Math.abs(2 * Number(p) - 100), 100)),
 };
 
 /** 「x ÷ y」「x × y」或一個數 → 分數 */
@@ -98,7 +107,9 @@ const limits = (q) => {
   return '';
 };
 
-for (const type of typeNames()) {
+// 四上的題型（g4- 開頭）數字範圍不同，在 tests/generate-g4.test.mjs 另外檢查
+const sixTypes = typeNames().filter((t) => !t.startsWith('g4-'));
+for (const type of sixTypes) {
   test(`${type}：${N} 題都合格、在範圍內、答案重算一致`, () => {
     const rng = createRng(12345);
     const seenTexts = new Set();
@@ -251,4 +262,4 @@ test('綜合練習：題數、單元平均分配', () => {
   }
 });
 
-console.log(`出題模組：通過 ${passed} 項（每種題型 ${N} 題，共 ${typeNames().length} 種）` + (process.exitCode ? '（有失敗）' : ''));
+console.log(`出題模組：通過 ${passed} 項（每種題型 ${N} 題，共 ${sixTypes.length} 種）` + (process.exitCode ? '（有失敗）' : ''));

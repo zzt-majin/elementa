@@ -849,4 +849,63 @@ const ratioMore = {
 };
 
 /** 全部題型：代號 → 產生器 */
-export const MATH_TYPES = { ...factorUnit, ...factorMore, ...fracUnit, ...fracMore, ...decUnit, ...decMore, ...ratioUnit, ...ratioMore, ...twoUnit };
+// =====================================================================
+// 2026-11-26 新增：照姐姐 11 月兩量差考卷的錯誤加的題型
+// =====================================================================
+
+const DISCOUNT_ZH = { 9: '九', 85: '八五', 8: '八', 75: '七五', 7: '七', 65: '六五', 6: '六', 5: '五' };
+
+const twoMore = {
+  /** 兩店不同折數比價差（已知原價求差要用乘法，常誤套 ÷(1-折數)） */
+  'two-discount-compare'(rng, cfg) {
+    const offs = list(cfg, 'discounts', ['9', '85', '8', '75', '7', '6', '5']).map(String);
+    if (offs.length < 2) retry();
+    const picked = rng.shuffle(offs).slice(0, 2);
+    const oA = picked[0], oB = picked[1];
+    const rA = fromDecimal('0.' + oA), rB = fromDecimal('0.' + oB);
+    if (eq(rA, rB)) retry();
+    const P = F(rng.int(4, 40) * 100);
+    const sA = mul(P, rA), sB = mul(P, rB);
+    if (!isInt(sA) || !isInt(sB)) retry();
+    const aHigher = cmp(rA, rB) > 0;
+    const rHi = aHigher ? rA : rB, rLo = aHigher ? rB : rA;
+    const sHi = aHigher ? sA : sB, sLo = aHigher ? sB : sA;
+    const hiName = aHigher ? '甲店' : '乙店', loName = aHigher ? '乙店' : '甲店';
+    const diff = sub(sHi, sLo);
+    const rDiff = sub(rHi, rLo);
+    const zhA = DISCOUNT_ZH[oA] || oA, zhB = DISCOUNT_ZH[oB] || oB;
+    const [thing, kind] = rng.pick([['球鞋', '雙'], ['外套', '件'], ['書包', '個'], ['籃球', '顆'], ['羽球拍', '支']]);
+    const askMore = rng.chance(0.6);
+    const ask = askMore
+      ? '在' + hiName + '購買會比在' + loName + '購買多花多少元？'
+      : '在' + loName + '購買會比在' + hiName + '購買便宜多少元？';
+    return fill('運動用品店優惠活動，甲店原價打' + zhA + '折，乙店原價打' + zhB + '折。一' + kind + thing + '原價 ' + dec(P) + ' 元，' + ask, [dec(diff)], '元',
+      '原價 ' + dec(P) + ' 元是基準量，已知原價求價差要用「乘法」（不是除法）。' + hiName + '付原價的 ' + dec(rHi) + ' 倍，' + loName + '付原價的 ' + dec(rLo) + ' 倍，相差 ' + dec(rHi) + ' － ' + dec(rLo) + ' ＝ ' + dec(rDiff) + ' 倍：' + dec(P) + ' × ' + dec(rDiff) + ' ＝ ' + dec(diff) + ' 元。也可以分開算：' + hiName + ' ' + dec(P) + ' × ' + dec(rHi) + ' ＝ ' + dec(sHi) + ' 元，' + loName + ' ' + dec(P) + ' × ' + dec(rLo) + ' ＝ ' + dec(sLo) + ' 元，相差 ' + dec(sHi) + ' － ' + dec(sLo) + ' ＝ ' + dec(diff) + ' 元。');
+  },
+
+  /** 已知總數與其中一部分的百分率，求兩部分相差多少（常只算出另一部分就停） */
+  'two-part-diff'(rng) {
+    const p = rng.pick([20, 25, 30, 35, 40, 60, 65, 70, 75, 80]);
+    const qPct = 100 - p;
+    const c = rng.pick([
+      { intro: '弟弟參加飛鏢比賽，共射', tail: '支，射中率是', p1: '射中的飛鏢', p2: '沒射中的飛鏢', u: '支', verb: '多幾支', ts: [20, 40, 60, 80, 100] },
+      { intro: '小傑練習投籃，共投了', tail: '球，進球率是', p1: '投進的球', p2: '沒投進的球', u: '球', verb: '多幾球', ts: [20, 40, 60, 80, 100] },
+      { intro: '桌球社共有', tail: '人，男生人數占全部的', p1: '男生', p2: '女生', u: '人', verb: '多幾人', ts: [20, 40, 60, 80, 100, 120, 160, 200] },
+      { intro: '這次數學測驗共有', tail: '題，小美的答對率是', p1: '答對的題數', p2: '答錯的題數', u: '題', verb: '多幾題', ts: [20, 40, 60, 80, 100] },
+      { intro: '果園今天採收了', tail: '顆蘋果，紅蘋果占全部的', p1: '紅蘋果', p2: '青蘋果', u: '顆', verb: '多幾顆', ts: [40, 60, 80, 100, 120, 160, 200] },
+    ]);
+    const T = rng.pick(c.ts);
+    const part1 = mul(F(T), F(p, 100));
+    const part2 = sub(F(T), part1);
+    if (!isInt(part1) || !isInt(part2)) retry();
+    const big = p > 50;
+    const hiPart = big ? part1 : part2, loPart = big ? part2 : part1;
+    const hiName = big ? c.p1 : c.p2, loName = big ? c.p2 : c.p1;
+    const diff = sub(hiPart, loPart);
+    const hiPct = Math.max(p, qPct), loPct = Math.min(p, qPct), pctDiff = hiPct - loPct;
+    return fill(c.intro + ' ' + T + ' ' + c.tail + ' ' + p + '%，' + hiName + '比' + loName + c.verb + '？', [dec(diff)], c.u,
+      c.p1 + '占 ' + p + '%，' + c.p2 + '占 1 － ' + p + '% ＝ ' + qPct + '%。注意：只算 ' + T + ' × ' + qPct + '% ＝ ' + dec(part2) + ' 只是「' + c.p2 + '」的數量，還沒做完！還要算兩部分相差：' + hiName + ' ' + dec(hiPart) + ' ' + c.u + ' － ' + loName + ' ' + dec(loPart) + ' ' + c.u + ' ＝ ' + dec(diff) + ' ' + c.u + '。也可以直接用百分率差：' + T + ' × (' + hiPct + '% － ' + loPct + '%) ＝ ' + T + ' × ' + pctDiff + '% ＝ ' + dec(diff) + ' ' + c.u + '。');
+  },
+};
+
+export const MATH_TYPES = { ...factorUnit, ...factorMore, ...fracUnit, ...fracMore, ...decUnit, ...decMore, ...ratioUnit, ...ratioMore, ...twoUnit, ...twoMore };

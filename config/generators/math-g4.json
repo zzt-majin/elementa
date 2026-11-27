@@ -1,0 +1,7 @@
+{
+  "_說明": "四年級上學期數學出題數字範圍（獨立於六年級 math.json）。改這裡就能調難度。",
+  "bignumMax": 90000000,
+  "kmMax": 15,
+  "fracDenMax": 12,
+  "div3MaxDividend": 9999
+}
