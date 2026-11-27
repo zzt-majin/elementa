@@ -31,6 +31,28 @@ const ICON_PATHS = {
 // 圖案後面的圓形底色
 const ICON_BG = { 功夫: '#ffe08a', 吉他: '#c9e7ff', 鍵盤: '#e3d6ff', 麥克風: '#ffd3e0', 書: '#fff2c9', 畫筆: '#ffe3ea', 教師: '#c9f0d2', 科學: '#d6f3ff', 地球: '#e4f4ff', 火箭: '#e3d6ff', 運動: '#c9f0d2', 電影: '#ffe3c9', 愛心: '#ffe3ea', 花: '#fff2c9', 樹: '#dff5d8', 旗子: '#ffe3ea', 蛋糕: '#fff2c9', 星星: '#fff2c9' };
 
+/** 祝賀畫面的橋（拱橋＋水＋星星） */
+function bridgeArt() {
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 64 64');
+  svg.setAttribute('width', '84');
+  svg.setAttribute('height', '84');
+  svg.setAttribute('aria-hidden', 'true');
+  const parts = [
+    ['M4 44c8-14 48-14 56 0', 'none', '#b07a4f', 3], ['M6 40h52', 'none', '#b07a4f', 4],
+    ['M12 40v-8M22 40v-12M32 40v-13M42 40v-12M52 40v-8', 'none', '#b07a4f', 2.5],
+    ['M2 52c6-3 10 3 16 0s10-3 16 0 10 3 16 0 10-3 12 0', 'none', '#5fb8dc', 3],
+    ['M32 6l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z', '#ffd34d', '#3b2a30', 2],
+  ];
+  for (const [d, fillC, stroke, w] of parts) {
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', d); p.setAttribute('fill', fillC); p.setAttribute('stroke', stroke);
+    p.setAttribute('stroke-width', String(w)); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
+    svg.append(p);
+  }
+  return svg;
+}
+
 /** 畫一個圖案（SVG） */
 export function iconSvg(name, size = 60) {
   const svg = document.createElementNS(NS, 'svg');
@@ -54,6 +76,7 @@ export function iconSvg(name, size = 60) {
 
 const CAKE = ['M4 21h16v-8H4z', 'M4 16c2 1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 4 0', 'M12 13V9', 'M12 6.5c.8-1 .8-2 0-3-.8 1-.8 2 0 3z'];
 const FLAG = ['M5 21V4', 'M5 4h12l-2 4 2 4H5'];
+const BOOK = ['M5 3h12a2 2 0 0 1 2 2v16H7a2 2 0 0 1-2-2z', 'M9 8h6M9 12h6'];
 function smallIcon(paths) {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
@@ -72,7 +95,7 @@ function smallIcon(paths) {
  * root：日曆放在哪（#calendar）；host：小視窗放在哪（#hud）；text：config/text.json 的 calendar；
  * config：config/calendar.json；fetchText(url) → 檔案文字或 null（沒有檔案）
  */
-export function createCalendar(root, host, { text = {}, config = {}, fetchText, now = () => Date.now() } = {}) {
+export function createCalendar(root, host, { text = {}, config = {}, fetchText, now = () => Date.now(), onDayChange } = {}) {
   const T = text;
   const tz = config.timeZone || 'Asia/Taipei';
   const folder = typeof config.folder === 'string' && /^[\w./-]*$/.test(config.folder) ? config.folder : 'content/calendar/';
@@ -81,6 +104,8 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
   let dialog = null;
   let lastFocus = null;
   let info = null;
+  let diary = { title: '', entries: [], fresh: '' }; // 今天的日記：{ title, entries: [{ id, line }], fresh 剛寫進去、要閃一下的 id }
+  let onDialogClose = null;
 
   const el = (tag, cls, content) => {
     const e = document.createElement(tag);
@@ -120,11 +145,23 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
     page.append(head, month, body);
     const foot = el('div', 'cal-foot');
     foot.hidden = true;
-    page.append(foot);
+    page.append(foot, renderDiary());
     root.replaceChildren(page);
     root.setAttribute('aria-label', fill(T.label, { date: info.rocText + info.monthZh + info.day + '日' + info.weekdayZh }));
     const key = info.key;
     bookOf(key).then((b) => { if (shownKey === key) renderFoot(foot, b); });
+  }
+
+  /** 日曆最下面的日記（橫線紙）：今天完成的里程碑 */
+  function renderDiary() {
+    const box = el('div', 'cal-diary');
+    if (!diary.title) { box.hidden = true; return box; }
+    const t = el('div', 'cal-diary-title');
+    t.append(smallIcon(BOOK), el('span', '', diary.title));
+    box.append(t);
+    if (!diary.entries.length) box.append(el('p', 'cal-diary-empty', T.diaryEmpty));
+    for (const e of diary.entries) box.append(el('p', 'cal-diary-line' + (e.id === diary.fresh ? ' fresh' : ''), e.line));
+    return box;
   }
 
   function chip(item, cls) {
@@ -161,20 +198,32 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
     foot.append(full, more);
   }
 
-  function openDialog(nodes, label) {
+  function openDialog(nodes, label, opts = {}) {
     closeDialog(false);
     lastFocus = document.activeElement;
-    const back = el('div', 'cal-back');
-    const box = el('section', 'cal-dialog');
+    onDialogClose = opts.onClose || null;
+    const back = el('div', 'cal-back' + (opts.cls ? ' ' + opts.cls + '-back' : ''));
+    const box = el('section', 'cal-dialog' + (opts.cls ? ' ' + opts.cls : ''));
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-modal', 'true');
     box.setAttribute('aria-label', label);
-    const close = el('button', 'cal-close', T.close);
+    const close = el('button', opts.closeCls || 'cal-close', opts.closeLabel || T.close);
     close.type = 'button';
     close.addEventListener('click', () => closeDialog());
     box.append(...nodes, close);
+    if (opts.confetti) {
+      // 彩帶：幾條彩色紙片從上面飄下來
+      const colors = ['#ff7fa8', '#f5c842', '#7fd4f5', '#9fdc8c', '#d7c2ff'];
+      for (let i = 0; i < 14; i++) {
+        const c = el('span', 'cel-conf');
+        c.style.left = (4 + i * 7) + '%';
+        c.style.background = colors[i % colors.length];
+        c.style.animationDelay = ((i * 0.37) % 2.4).toFixed(2) + 's';
+        back.append(c);
+      }
+    }
     back.append(box);
-    back.addEventListener('click', (e) => { if (e.target === back) closeDialog(); });
+    back.addEventListener('click', (e) => { if (e.target === back && !opts.modal) closeDialog(); });
     back.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(); }
       if (e.key === 'Tab') {
@@ -196,6 +245,19 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
     dialog.remove();
     dialog = null;
     if (restore && lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    const done = onDialogClose;
+    onDialogClose = null;
+    done?.();
+  }
+
+  /** 祝賀畫面：m = { title, body, line }；按「寫進日記」（或 Esc）後呼叫 onDone */
+  function celebrate(m, onDone) {
+    const badge = el('div', 'cel-badge');
+    badge.append(bridgeArt());
+    const note = el('div', 'cel-note');
+    note.append(smallIcon(BOOK), el('span', '', T.willWrite), el('b', '', m.line));
+    openDialog([badge, el('p', 'cel-kicker', T.milestone), el('h2', '', m.title), el('p', 'cel-body', m.body), note], m.title,
+      { cls: 'cel', closeLabel: T.write, closeCls: 'btn cel-write', confetti: true, modal: true, onClose: onDone });
   }
 
   function openItem(item) {
@@ -238,11 +300,18 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
   // 換日：每分鐘看一下日期有沒有變（過了台灣時間半夜 12 點就換一頁）
   const timer = setInterval(() => {
     const k = calendarDay(now(), { timeZone: tz, holidays: {} }).key;
-    if (k !== shownKey) { closeDialog(false); render(); }
+    if (k !== shownKey) { if (!dialog?.querySelector('.cel')) closeDialog(false); render(); onDayChange?.(); }
   }, 60000);
 
   return {
     render,
+    celebrate,
+    /** 日曆最下面的日記：title 例如「姐姐的日記」；entries 今天的 [{ id, line }]；fresh 剛寫進去的 id（閃一下） */
+    setDiary(title, entries, fresh = '') {
+      diary = { title: title || '', entries: Array.isArray(entries) ? entries : [], fresh };
+      const old = root.querySelector('.cal-diary');
+      if (old) old.replaceWith(renderDiary());
+    },
     isOpen: () => !!dialog,
     close: () => closeDialog(),
     /** 檢查用：今天的資料 */

@@ -267,7 +267,7 @@
     "clockLabel": "台灣時間 {t}"
   },
   "calendar": {
-    "_說明": "左上角的日曆。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期。",
+    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記。",
     "yearLine": "{y}・{gz}年・生肖屬{animal}",
     "label": "今天的日曆：{date}",
     "birthdays": "今天生日",
@@ -275,6 +275,14 @@
     "more": "今天的故事（{n}）",
     "listTitle": "{m} 月 {d} 日的故事",
     "fact": "小知識：",
-    "close": "知道了"
+    "close": "知道了",
+    "diaryTitle": "{kid}的日記",
+    "diaryEmpty": "今天還沒有日記",
+    "milestone": "里程碑達成",
+    "willWrite": "會寫進日記：",
+    "write": "寫進日記",
+    "bridgeTitle": "恭喜完成第{nth}座橋！",
+    "bridgeBody": "{from}和{to}連起來了，小公主可以走過去探險囉！",
+    "bridgeDiary": "{m}/{d} 蓋了第{nth}座橋！"
   }
 }

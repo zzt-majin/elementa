@@ -9,13 +9,15 @@ import { createCameraRig } from './camera.js';
 import { buildIsland, whatWasHit, walkAreaOf } from './islands.js';
 import { createControls } from './controls.js';
 import { makePrincess } from '../avatar/princess.js';
-import { createWalker, screenToGround, nearestDoor } from '../avatar/walk.js';
+import { createWalker, screenToGround, nearestDoor, surfaceAt } from '../avatar/walk.js';
+import { createShoreWaves, createFootprints } from './shore.js';
 import { bridgeConfig, bridgeLine, bridgeStrip, makeBridge, makeBridgeSite, makeMist } from './bridges.js';
 import { bridgePlan, reachable, canStart, createBuildBook, bridgePrice } from '../engine/build.js';
 import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
 import { clockText, msToNextMinute } from './clock.js';
 import { createCalendar } from './calendar.js';
+import { milestones } from '../engine/diary.js';
 import { createQuizUI } from './quiz-ui.js';
 import { createCardsUI } from './cards-ui.js';
 import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
@@ -76,7 +78,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     text: text.calendar || {},
     config: calendarConfig || {},
     fetchText: async (url) => { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? r.text() : null; },
-  }) : { isOpen: () => false, close() {} };
+    onDayChange: () => refreshDiary(),
+  }) : { isOpen: () => false, close() {}, setDiary() {}, celebrate(m, done) { done?.(); }, today: () => null };
   const loading = hudRoot.querySelector('#loading');
   loading.textContent = text.loading;
 
@@ -119,6 +122,10 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const rig = createCameraRig(view.camera, canvas, world.camera);
   const islandsGroup = new THREE.Group();
   view.scene.add(islandsGroup);
+  // 沙灘邊的海浪（一圈一圈白色浪花往外推）和小公主在沙灘上的足跡（3 秒後慢慢消失）
+  const waves = createShoreWaves(view.scene, world.shore);
+  const footprints = createFootprints(view.scene, world.footprints);
+  waves.build(subjects.islands, world.island);
   const bridgesGroup = new THREE.Group(); // 蓋好的橋、還沒蓋的虛線和浮標
   view.scene.add(bridgesGroup);
   const mistGroup = new THREE.Group(); // 還沒連上的島周圍的淡霧
@@ -243,7 +250,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   function placeAtHome() {
     area = computeArea();
     if (area) walker.place({ x: area.spawn.x, z: area.spawn.z, heading: 0 });
-    princessModel.group.position.set(walker.x, area ? area.top : 0.9, walker.z);
+    princessModel.group.position.set(walker.x, area ? surfaceAt(walker, area, area.top).y : 0.9, walker.z);
+    footprints.clear();
     princessModel.group.rotation.y = walker.heading;
     door = null;
     hud.setEnter(null);
@@ -268,6 +276,43 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     }
     return out;
   }
+  // ---------- 日記（里程碑）：日曆最下面記今天完成的事；完成時先跳出「恭喜完成…」 ----------
+  const islandNames = Object.fromEntries(subjects.islands.map((i) => [i.code, i.name]));
+  const CT = () => text.calendar || {};
+  let started = false; // 按過「點一下出發」才跳祝賀（不然會被蓋住）
+  const celebratedKey = () => 'celebrated.' + kid;
+  function celebrated() {
+    try { const a = JSON.parse(store.get(celebratedKey()) || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); }
+  }
+  const allMilestones = () => (kid ? milestones({ builds: builds.list(kid), plan, names: islandNames, text: CT(), timeZone: calendarConfig?.timeZone || 'Asia/Taipei' }) : []);
+  function todayKey() {
+    const t = calendar.today?.();
+    return t ? t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0') : '';
+  }
+  /** 日曆下面的日記：只放今天、已經祝賀過的（還在等祝賀的，按了「寫進日記」才出現） */
+  function refreshDiary(fresh = '') {
+    if (!kid) { calendar.setDiary('', []); return; }
+    const done = celebrated();
+    const today = todayKey();
+    const list = allMilestones().filter((m) => m.day === today && done.has(m.id)).map((m) => ({ id: m.id, line: m.line }));
+    calendar.setDiary(fill(CT().diaryTitle, { kid }), list, fresh);
+  }
+  /** 有還沒祝賀的里程碑就跳出來（一次一個，按了再跳下一個） */
+  function checkCelebrate() {
+    if (!started || !kid || paused || growing || calendar.isOpen()) return;
+    const done = celebrated();
+    const next = allMilestones().find((m) => !done.has(m.id));
+    if (!next) return;
+    const who = kid;
+    calendar.celebrate(next, () => {
+      const set = celebrated();
+      set.add(next.id);
+      store.set('celebrated.' + who, JSON.stringify([...set]));
+      if (who === kid) refreshDiary(next.id);
+      setTimeout(checkCelebrate, 400);
+    });
+  }
+
   /** 已經蓋好幾座橋（同一座只算一次） */
   const bridgesBuilt = () => (kid ? builds.effective(kid).filter((x) => x.kind === 'bridge').length : 0);
   /** 下一座橋要多少（第 n 座 = 120 × n，數字在 config/economy.json 的 build.bridge） */
@@ -317,6 +362,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       }
     }
     for (const def of subjects.islands) if (!reach.has(def.code)) mistGroup.add(makeMist(def, world.island, bcfg));
+    refreshDiary();
+    setTimeout(checkCelebrate, 0); // 換小孩、雲端合併進來別台蓋的橋，也看看要不要祝賀
   }
   /** 小公主能走的地方：走得到的島＋蓋好的橋；門口：那些島上的建築＋還沒蓋的橋頭 */
   function computeArea() {
@@ -324,7 +371,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     if (!groups.length) return null;
     const parts = groups.map((g) => walkAreaOf(g));
     const home = parts.find((p) => p.island === homeCode) || parts[0];
-    const grounds = parts.map((p) => ({ type: 'circle', cx: p.cx, cz: p.cz, r: p.radius, island: p.island }));
+    const grounds = parts.map((p) => ({ type: 'circle', cx: p.cx, cz: p.cz, r: p.radius, grassR: p.grassR, slopeR: p.slopeR, sandTop: p.sandTop, island: p.island }));
     const doors = parts.flatMap((p) => p.doors.map((d) => ({ ...d, id: d.island + ':' + d.kind })));
     for (const [key, v] of bridgeViews) {
       if (v.kind === 'built' && growing?.key !== key) grounds.push({ ...bridgeStrip(v.line), bridge: key });
@@ -426,6 +473,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     area = computeArea();
     if (mode === 'walk') rig.follow(playerPoint); else rig.focus(new THREE.Vector3(done.line.mid.x, 0, done.line.mid.z), 0.7);
     hud.flash(fill(B().done, { to: toName }), 5000);
+    setTimeout(checkCelebrate, 300); // 橋長好了：恭喜完成第幾座橋
   }
   const showLabels = () => { for (const g of islandsGroup.children) if (g.userData.label) g.userData.label.visible = mode === 'map'; };
 
@@ -793,7 +841,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   startText.textContent = text.tapToStart;
   startGate.replaceChildren(startText);
   startGate.hidden = false;
-  startGate.addEventListener('click', () => { startGate.hidden = true; music.start(); }, { once: true });
+  startGate.addEventListener('click', () => { startGate.hidden = true; music.start(); started = true; checkCelebrate(); }, { once: true });
 
   loading.hidden = true;
   setMode('walk');
@@ -837,6 +885,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     for (const v of bridgeViews.values()) if (v.view.buoy) v.view.buoy.position.y = Math.sin(t * 1.6 + v.line.len) * 0.15;
     stepGrowing(dt);
     stepPrincess(dt);
+    waves.update(t);
+    footprints.update(t);
     rig.update(dt);
     view.update(t, rig.target);
     view.render();
@@ -849,7 +899,11 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       const ax = controls.axis();
       const dir = free ? screenToGround(ax.x, ax.y, rig.yaw()) : { x: 0, z: 0 };
       if (free || (walker.target && !growing)) walker.update(dt, dir, area);
-      princessModel.group.position.set(walker.x, area.top, walker.z);
+      const ground = surfaceAt(walker, area, area.top);
+      // 走下沙灘時慢慢降下去，不會一下子掉下去
+      const y = princessModel.group.position.y;
+      princessModel.group.position.set(walker.x, Math.abs(y - ground.y) > 0.6 ? ground.y : y + (ground.y - y) * Math.min(1, dt * 12), walker.z);
+      footprints.step(walker, walker.heading, ground.beach && walker.moving > 0.2, ground.y);
       princessModel.group.rotation.y = walker.heading;
     }
     princessModel.animate(dt, walker.moving);
@@ -871,7 +925,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   return {
     ...api, openIsland, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI, openBridge, calendar,
     /** 檢查用（自動測試讀小公主在哪、走得到哪些島）；網站本身不用 */
-    debug: { walker, area: () => area, reach: () => [...reach], mist: () => mistGroup.children.map((m) => m.userData.mist), bridges: () => [...bridgeViews].map(([k, v]) => k + ':' + v.kind), growing: () => !!growing },
+    debug: { footprints: () => footprints.count(), walker, area: () => area, reach: () => [...reach], mist: () => mistGroup.children.map((m) => m.userData.mist), bridges: () => [...bridgeViews].map(([k, v]) => k + ':' + v.kind), growing: () => !!growing },
   };
 }
 

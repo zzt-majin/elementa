@@ -13,6 +13,7 @@ const SHAPE = {
   tent: { r: 1.45, door: 1.15 },
 };
 const TOP = 0.9; // 草地表面的高度
+const SAND_TOP = 0.6; // 沙灘表面的高度（沙灘圓柱 y 0.05、高 1.1）
 
 /**
  * def：subjects.json 的一筆島；colors：場景色＋公主色
@@ -27,7 +28,9 @@ export function buildIsland(def, colors, opts) {
   const seg = isl.segments || 24;
   const g = new THREE.Group();
   const grassR = r * 0.84;
-  const walk = { radius: grassR, obstacles: [], doors: [], spawn: { ...(vil.spawn || { x: 0, z: r * 0.4 }) }, top: TOP };
+  // 小公主可以走到沙灘上（草地邊緣往下一個小坡到沙灘），海浪那邊停住
+  const beach = isl.beachWalk ?? 0.95;
+  const walk = { radius: r * beach, grassR, slopeR: r * 0.88, sandTop: SAND_TOP, obstacles: [], doors: [], spawn: { ...(vil.spawn || { x: 0, z: r * 0.4 }) }, top: TOP };
   g.userData = { island: def.code, radius: r, walk };
   g.position.set(def.position[0], 0, def.position[1]);
 
@@ -133,6 +136,9 @@ export function walkAreaOf(group) {
     cx: ox,
     cz: oz,
     radius: w.radius,
+    grassR: w.grassR,
+    slopeR: w.slopeR,
+    sandTop: w.sandTop,
     obstacles: w.obstacles.map((o) => ({ x: o.x + ox, z: o.z + oz, r: o.r })),
     doors: w.doors.map((d) => ({ kind: d.kind, island: group.userData.island, x: d.x + ox, z: d.z + oz, face: d.face })),
     spawn: { x: w.spawn.x + ox, z: w.spawn.z + oz },

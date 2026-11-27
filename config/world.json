@@ -15,12 +15,13 @@
     "follow": { "distance": 11, "height": 8, "lookHeight": 1.2, "yaw": 0, "maxTurnDegrees": 35, "smooth": 5, "minZoom": 0.7, "maxZoom": 1.4 }
   },
   "island": {
-    "_說明": "radius 是 size = 1 的島的半徑（subjects.json 的 size 再乘上去）。segments 是島邊緣的邊數（越多越圓）。flowers、trees 是每座島的小花和樹的數量，樹種在島邊一圈，中間空地留給之後放東西。bobAmount 是島上下浮動的高度，小公主站在島上，所以設 0。",
+    "_說明": "radius 是 size = 1 的島的半徑（subjects.json 的 size 再乘上去）。segments 是島邊緣的邊數（越多越圓）。flowers、trees 是每座島的小花和樹的數量，樹種在島邊一圈，中間空地留給之後放東西。bobAmount 是島上下浮動的高度，小公主站在島上，所以設 0。beachWalk 是小公主可以走到多外面（島半徑的幾倍；草地到 0.84、沙灘到 1），0.95 就是可以走到沙灘上、靠近海浪的地方。",
     "radius": 23.4,
     "segments": 48,
     "flowers": 40,
     "trees": 10,
     "bobAmount": 0,
+    "beachWalk": 0.95,
     "bobSpeed": 0.8
   },
   "bridge": {
@@ -37,6 +38,27 @@
     "rail": "#b07a4f",
     "dashColor": "#ffffff",
     "mist": { "opacity": 0.32, "height": 10, "extra": 1.06, "color": "#ffffff" }
+  },
+  "shore": {
+    "_說明": "沙灘邊的海浪：每座島外圍 rings 圈白色浪花，每 period 秒從沙灘邊往外推 push（島半徑的幾倍），width 浪花寬幾公尺，opacity 最亮多亮，height 浮在海面多高。",
+    "rings": 3,
+    "period": 3.6,
+    "push": 0.09,
+    "width": 0.9,
+    "opacity": 0.6,
+    "color": "#ffffff",
+    "height": 0.22
+  },
+  "footprints": {
+    "_說明": "小公主走在沙灘上留下的足跡：每走 stride 公尺一個（左右腳交替，左右差 side 公尺），停留 stay 秒後，在 fade 秒內慢慢消失；max 是最多同時幾個；size 是腳印的寬和長（公尺）；color、opacity 是顏色和濃淡。",
+    "stride": 0.55,
+    "side": 0.13,
+    "stay": 3,
+    "fade": 1.5,
+    "max": 70,
+    "size": [0.12, 0.2],
+    "color": "#c9a66b",
+    "opacity": 0.75
   },
   "village": {
     "_說明": "島中間的小村子：三棟建築的位置（離島中心幾公尺，x 往右、z 往南／往鏡頭）、ry 轉幾度（弧度）。buildingScale 是建築的大小倍率。spawn 是小公主出現的地方。門都朝南（+z），小公主走到門口 doorDistance 公尺內就會出現「進入」按鈕。",

@@ -135,6 +135,40 @@ export function routeVia(from, to, area) {
   return out;
 }
 
+/**
+ * 腳下的高度：草地 top（0.9），草地邊緣往外是小坡，再外面是沙灘 sandTop（0.6）；橋上和草地一樣高。
+ * 回傳 { y, beach（是不是走在沙灘上） }
+ */
+export function surfaceAt(p, area, top = 0.9) {
+  const grounds = groundsOf(area);
+  for (const g of grounds) {
+    if (g.type !== 'strip') continue;
+    const dx = p.x - g.ax; const dz = p.z - g.az;
+    const len = Math.hypot(g.bx - g.ax, g.bz - g.az) || 1e-9;
+    const t = (dx * (g.bx - g.ax) + dz * (g.bz - g.az)) / len;
+    const side = Math.abs(-dx * (g.bz - g.az) + dz * (g.bx - g.ax)) / len;
+    if (t >= 0 && t <= len && side <= g.half + 1e-6) {
+      // 橋頭還在草地上的那一段照草地算；離開草地以後是橋面
+      const c = grounds.find((x) => x.type === 'circle' && x.grassR && Math.hypot(p.x - x.cx, p.z - x.cz) <= x.grassR);
+      if (!c) return { y: top, beach: false };
+    }
+  }
+  let best = null;
+  let bestD = Infinity;
+  for (const g of grounds) {
+    if (g.type !== 'circle') continue;
+    const d = Math.hypot(p.x - g.cx, p.z - g.cz);
+    if (d - g.r < bestD) { bestD = d - g.r; best = { g, d }; }
+  }
+  if (!best || !best.g.grassR) return { y: top, beach: false };
+  const { g, d } = best;
+  const sand = g.sandTop ?? top;
+  if (d <= g.grassR) return { y: top, beach: false };
+  if (d >= g.slopeR) return { y: sand, beach: true };
+  const k = (d - g.grassR) / Math.max(1e-6, g.slopeR - g.grassR);
+  return { y: top + (sand - top) * k, beach: k > 0.5 };
+}
+
 /** 從 p 往 dir（會先變成長度 1）走 dist 這麼遠，回傳走完的位置 */
 export function step(p, dir, dist, area, body = 0.35) {
   const len = Math.hypot(dir.x, dir.z);

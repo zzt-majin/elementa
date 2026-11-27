@@ -1,6 +1,6 @@
 // 用 Node 跑：node tests/walk.test.mjs
 // 小公主走路：不能走出草地、不能穿過建築、會沿著邊滑、點地面走過去、門口判斷、方向鍵對應畫面方向。
-import { resolve, step, nearestDoor, screenToGround, createWalker, turnToward, clampTarget, groundAt, routeVia } from '../avatar/walk.js';
+import { resolve, step, nearestDoor, screenToGround, createWalker, turnToward, clampTarget, groundAt, routeVia, surfaceAt } from '../avatar/walk.js';
 
 let pass = 0;
 const fail = [];
@@ -138,6 +138,23 @@ const body = 0.35;
   const bc = { type: 'strip', ax: 40, az: 8, bx: 40, bz: 32, half: 1.5 };
   const three = { grounds: [A, B, C, bridge, bc], obstacles: [] };
   ok(routeVia({ x: 0, z: 0 }, { x: 40, z: 40 }, three).length === 4, '要過兩座橋也找得到路');
+}
+
+// 沙灘：草地 0.9，往外一個小坡，沙灘 0.6；橋上和草地一樣高
+{
+  const isl = { type: 'circle', cx: 0, cz: 0, r: 25, grassR: 22, slopeR: 23, sandTop: 0.6 };
+  const br = { type: 'strip', ax: 20, az: 0, bx: 60, bz: 0, half: 1.5 };
+  const a = { grounds: [isl, br], obstacles: [] };
+  ok(surfaceAt({ x: 5, z: 0 }, a).y === 0.9 && !surfaceAt({ x: 5, z: 0 }, a).beach, '草地上 0.9');
+  ok(surfaceAt({ x: 0, z: 24 }, a).y === 0.6 && surfaceAt({ x: 0, z: 24 }, a).beach, '沙灘上 0.6，算在沙灘');
+  const mid = surfaceAt({ x: 0, z: 22.5 }, a);
+  ok(mid.y < 0.9 && mid.y > 0.6, '草地邊的小坡：' + mid.y.toFixed(2));
+  ok(surfaceAt({ x: 24, z: 0 }, a).y === 0.9 && !surfaceAt({ x: 24, z: 0 }, a).beach, '走在橋上（底下是沙灘）還是橋面高度');
+  ok(surfaceAt({ x: 24, z: 2 }, a).y === 0.6, '橋旁邊的沙灘');
+  let w = { x: 0, z: 0 };
+  for (let i = 0; i < 120; i++) w = step(w, { x: 0, z: 1 }, 0.5, a, body);
+  ok(Math.abs(w.z - (25 - body)) < 1e-6, '一直往海邊走：停在沙灘邊');
+  ok(surfaceAt({ x: 1, z: 1 }, { cx: 0, cz: 0, radius: 10, obstacles: [] }).y === 0.9, '舊的一座島寫法：都算草地');
 }
 
 console.log(`walk: ${pass} 通過` + (fail.length ? `，${fail.length} 失敗：\n- ` + fail.join('\n- ') : ''));
