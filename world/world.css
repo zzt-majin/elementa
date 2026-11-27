@@ -90,3 +90,10 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
 .reward-today { font-weight: 700; color: var(--deep); }
 .coin-line { display: block; margin: 6px 0 0; font-size: 13px; color: #a8790a; font-weight: 700; }
 .mix-preset .coin-line { margin: 0; flex-basis: 100%; }
+
+/* 蓋橋的建設面板 */
+.build-box { margin: 12px 0; padding: 14px; border-radius: 16px; background: #fff8e1; border: 2px solid #f5c842; }
+.build-price { margin: 0 0 4px; font: 700 20px "LXGW WenKai TC", serif; color: #a8790a; }
+.build-go { width: 100%; margin-top: 10px; min-height: 52px; font-size: 18px; }
+.build-go.armed { background: var(--deep); }
+.hint.flash { background: #fff8e1; font-weight: 700; color: #a8790a; }

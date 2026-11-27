@@ -1,11 +1,16 @@
 // 考卷補分站：進度後台（貼到 Google 試算表的 Apps Script 裡）
-// 四個工作表：「帳號」放小孩名字和密碼，「設定」是爸媽可以調整的規則，
-// 「進度」是每一關的最佳成績，「作答紀錄」是每一次作答（測驗和搶答賽）。
+// 五個工作表：「帳號」放小孩名字和密碼，「設定」是爸媽可以調整的規則，
+// 「進度」是每一關的最佳成績，「作答紀錄」是每一次作答（測驗和搶答賽），
+// 「建設」是蓋了哪些橋、花了多少歐巴幣（第一次有人蓋橋時會自動建立）。
 
 const ACCOUNTS = '帳號';
 const SETTINGS = '設定';
 const PROGRESS = '進度';
 const LOG = '作答紀錄';
+const BUILDS = '建設';
+const BUILD_HEADERS = ['時間', '小孩', '類型', '代號', '名稱', '歐巴幣', '寶石', '編號'];
+// 建設的「類型」對應網站的 kind
+const BUILD_KINDS = { '橋': 'bridge', '公路': 'road' };
 const LOG_HEADERS = ['時間', '小孩', '關卡代號', '關卡名稱', '答對', '題數', '用時（秒）', '時間到', '類型', '編號'];
 // 作答紀錄的「類型」對應網站帳本的 kind（歐巴幣、寶石照這個算）
 const KINDS = { '整關': 'level', '錯題重練': 'retry', '搶答賽': 'game' };
@@ -18,7 +23,7 @@ const SETTING_DEFS = [
   { key: 'wrongPenalty', label: '搶答答錯扣秒', def: 3, min: 0, max: 10 }
 ];
 
-// 第一次使用時手動執行一次：建立四個工作表（重複執行不會覆蓋已填的內容）
+// 第一次使用時手動執行一次：建立工作表（重複執行不會覆蓋已填的內容）
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const a = sheet_(ss, ACCOUNTS, ['小孩', '密碼（爸媽在這一欄設定）']);
@@ -34,6 +39,7 @@ function setup() {
   sheet_(ss, PROGRESS, ['小孩', '關卡代號', '關卡名稱', '最佳答對', '題數', '最佳用時（秒）', '挑戰次數', '最後作答時間']);
   const log = sheet_(ss, LOG, LOG_HEADERS);
   if (!String(log.getRange(1, 10).getValue())) log.getRange(1, 10).setValue('編號'); // 舊的表補上第 10 欄
+  sheet_(ss, BUILDS, BUILD_HEADERS);
   secret_();
 }
 
@@ -89,11 +95,12 @@ function handle_(d) {
       Utilities.sleep(500);
       return { ok: false, error: 'auth' };
     }
-    return { ok: true, token: tok, progress: progress_(name), settings: settings_(name), history: history_(name) };
+    return { ok: true, token: tok, progress: progress_(name), settings: settings_(name), history: history_(name), builds: builds_(name) };
   }
   if (d.token !== tok) return { ok: false, error: 'auth' };
-  if (d.action === 'load') return { ok: true, progress: progress_(name), settings: settings_(name), history: history_(name) };
+  if (d.action === 'load') return { ok: true, progress: progress_(name), settings: settings_(name), history: history_(name), builds: builds_(name) };
   if (d.action === 'save') return save_(name, d);
+  if (d.action === 'build') return build_(name, d);
   return { ok: false, error: 'bad' };
 }
 
@@ -147,7 +154,57 @@ function save_(name, d) {
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, progress: progress_(name), history: history_(name) };
+  return { ok: true, progress: progress_(name), history: history_(name), builds: builds_(name) };
+}
+
+// 蓋橋（之後的公路）：記到「建設」工作表。同一個編號、或同一個小孩已經蓋過同一個代號，就不再記
+// （兩台裝置都按了蓋同一座橋，只算一次）。餘額由網站從作答紀錄算，這裡只記花了多少。
+function build_(name, d) {
+  const kind = String(d.kind || '');
+  const type = Object.keys(BUILD_KINDS).filter(function (k) { return BUILD_KINDS[k] === kind; })[0];
+  const key = String(d.key || '');
+  const coins = Math.floor(Number(d.coins));
+  const id = String(d.id || '');
+  if (!type || !/^[a-z0-9-]{1,60}$/.test(key) || !/^[\w-]{1,40}$/.test(id) || !(coins >= 0 && coins <= 100000)) return { ok: false, error: 'bad' };
+  const gems = {};
+  const raw = d.gems && typeof d.gems === 'object' ? d.gems : {};
+  Object.keys(raw).slice(0, 10).forEach(function (k) {
+    const n = Math.floor(Number(raw[k]));
+    if (/^[a-z0-9-]{1,30}$/.test(k) && n > 0 && n <= 100000) gems[k] = n;
+  });
+  const at = Number(d.at);
+  const when = isFinite(at) && at > 0 ? new Date(at) : new Date();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = sheet_(ss, BUILDS, BUILD_HEADERS);
+    const rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 8).getDisplayValues() : [];
+    const dup = rows.some(function (r) { return r[7] === id || (r[1] === name && r[3] === key); });
+    if (!dup) sh.appendRow([when, name, type, key, clean_(d.keyName), coins, Object.keys(gems).length ? JSON.stringify(gems) : '', id]);
+  } finally {
+    lock.releaseLock();
+  }
+  return { ok: true, builds: builds_(name) };
+}
+
+// 某個小孩蓋過的東西，給網站畫橋、扣歐巴幣
+function builds_(name) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BUILDS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (String(r[1]) !== name) continue;
+    const kind = BUILD_KINDS[String(r[2])];
+    const at = r[0] instanceof Date ? r[0].getTime() : new Date(r[0]).getTime();
+    if (!kind || !isFinite(at)) continue;
+    let gems = {};
+    try { gems = r[6] ? JSON.parse(String(r[6])) : {}; } catch (err) { gems = {}; }
+    out.push({ id: String(r[7] || '') || 'row-' + at + '-' + r[3], at: at, kind: kind, key: String(r[3]), coins: Number(r[5]) || 0, gems: gems });
+  }
+  return out;
 }
 
 // 某個小孩的每一次作答，給網站算歐巴幣和寶石。沒有編號的舊紀錄用「時間＋關卡」當編號

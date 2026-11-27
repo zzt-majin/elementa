@@ -23,6 +23,21 @@
     "bobAmount": 0,
     "bobSpeed": 0.8
   },
+  "bridge": {
+    "_說明": "島和島之間的橋（價格在 economy.json 的 build.bridge）。width 橋面寬、overlap 兩頭伸進草地多深、plank 一片木板多長、gap 木板之間的縫、postEvery 每幾片木板一根欄杆柱、growSeconds 蓋橋動畫幾秒；dash／dashGap 海上虛線一段多長、間隔多長；deck／rail／dashColor 顏色。mist 是還沒連上的島周圍的淡霧：opacity 濃淡（0～1）、height 多高、extra 比島大多少倍。",
+    "width": 3,
+    "overlap": 1.5,
+    "plank": 0.9,
+    "gap": 0.12,
+    "postEvery": 3,
+    "growSeconds": 3,
+    "dash": 1.4,
+    "dashGap": 1.0,
+    "deck": "#d9a86c",
+    "rail": "#b07a4f",
+    "dashColor": "#ffffff",
+    "mist": { "opacity": 0.32, "height": 10, "extra": 1.06, "color": "#ffffff" }
+  },
   "village": {
     "_說明": "島中間的小村子：三棟建築的位置（離島中心幾公尺，x 往右、z 往南／往鏡頭）、ry 轉幾度（弧度）。buildingScale 是建築的大小倍率。spawn 是小公主出現的地方。門都朝南（+z），小公主走到門口 doorDistance 公尺內就會出現「進入」按鈕。",
     "buildingScale": 1.15,

@@ -16,7 +16,8 @@ const TOP = 0.9; // 草地表面的高度
 
 /**
  * def：subjects.json 的一筆島；colors：場景色＋公主色
- * opts：{ island（world.json 的 island）, village（world.json 的 village）, labels, levelCount }
+ * opts：{ island（world.json 的 island）, village（world.json 的 village）, labels, levelCount,
+ *         paths：橋的方向 [{ x, z, half }]（島自己的座標，長度 1），那條路上不種樹，橋頭才不會被擋住 }
  * 回傳 THREE.Group，userData.island = 島代號；每棟建築 userData.building = 'tower' | 'house' | 'tent'
  */
 export function buildIsland(def, colors, opts) {
@@ -76,13 +77,16 @@ export function buildIsland(def, colors, opts) {
 
   // 樹：種在島邊一圈
   const trees = isl.trees ?? 5;
+  const paths = opts.paths || [];
   for (let i = 0; i < trees; i++) {
     const a = (i / trees) * Math.PI * 2 + 0.35 + def.code.length * 0.2;
     const d = grassR * (0.72 + 0.12 * ((i * 7) % 3) / 2);
     const k = (0.8 + 0.3 * ((i * 5) % 4) / 3) * s;
-    const t = makeTree(colors, k);
     const x = Math.sin(a) * d;
     const z = Math.cos(a) * d;
+    // 橋要接過來的那條路上不種樹（不管橋蓋了沒，樹的位置都一樣）
+    if (paths.some((p) => { const t = x * p.x + z * p.z; return t > 0 && Math.abs(-x * p.z + z * p.x) < p.half + 0.5 * k + 1.2; })) continue;
+    const t = makeTree(colors, k);
     t.position.set(x, TOP, z);
     t.rotation.y = i;
     g.add(t);
@@ -106,12 +110,13 @@ function part(geo, material, y, tag, rx = 0) {
   return m;
 }
 
-/** 從被點到的物件往上找，得到 { island, building } */
+/** 從被點到的物件往上找，得到 { island, building, bridge } */
 export function whatWasHit(object) {
   let o = object;
   while (o) {
+    if (o.userData && o.userData.bridge) return { island: null, building: null, bridge: o.userData.bridge };
     if (o.userData && (o.userData.building || o.userData.island)) {
-      return { island: o.userData.island, building: o.userData.building || null };
+      return { island: o.userData.island, building: o.userData.building || null, bridge: null };
     }
     o = o.parent;
   }
@@ -124,11 +129,12 @@ export function walkAreaOf(group) {
   const ox = group.position.x;
   const oz = group.position.z;
   return {
+    island: group.userData.island,
     cx: ox,
     cz: oz,
     radius: w.radius,
     obstacles: w.obstacles.map((o) => ({ x: o.x + ox, z: o.z + oz, r: o.r })),
-    doors: w.doors.map((d) => ({ kind: d.kind, x: d.x + ox, z: d.z + oz, face: d.face })),
+    doors: w.doors.map((d) => ({ kind: d.kind, island: group.userData.island, x: d.x + ox, z: d.z + oz, face: d.face })),
     spawn: { x: w.spawn.x + ox, z: w.spawn.z + oz },
     top: w.top,
   };

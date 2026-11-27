@@ -1,6 +1,6 @@
 // 用 Node 跑：node tests/walk.test.mjs
 // 小公主走路：不能走出草地、不能穿過建築、會沿著邊滑、點地面走過去、門口判斷、方向鍵對應畫面方向。
-import { resolve, step, nearestDoor, screenToGround, createWalker, turnToward, clampTarget } from '../avatar/walk.js';
+import { resolve, step, nearestDoor, screenToGround, createWalker, turnToward, clampTarget, groundAt, routeVia } from '../avatar/walk.js';
 
 let pass = 0;
 const fail = [];
@@ -90,6 +90,54 @@ const body = 0.35;
   const a = turnToward(3, -3, 1);
   ok(near(Math.cos(a), Math.cos(-3)) && near(Math.sin(a), Math.sin(-3)), '轉到目標角度');
   ok(Math.abs(turnToward(3, -3, 0.5) - 3) < 0.3, '從 3 轉到 -3 走短的那邊（只差 0.28）');
+}
+
+// 蓋橋以後：兩座島＋一條橋（第 4 步）
+{
+  const A = { type: 'circle', cx: 0, cz: 0, r: 10 };
+  const B = { type: 'circle', cx: 40, cz: 0, r: 10 };
+  const bridge = { type: 'strip', ax: 8, az: 0, bx: 32, bz: 0, half: 1.5 };
+  const two = { grounds: [A, B], obstacles: [] };
+  const linked = { grounds: [A, B, bridge], obstacles: [] };
+  let w = { x: 0, z: 0 };
+  for (let i = 0; i < 200; i++) w = step(w, { x: 1, z: 0 }, 0.5, two, body);
+  ok(w.x <= 10 - body + 1e-9, '沒蓋橋：走不到隔壁島');
+  w = { x: 0, z: 0 };
+  for (let i = 0; i < 200; i++) w = step(w, { x: 1, z: 0 }, 0.5, linked, body);
+  ok(w.x > 40, '蓋好橋：一直往右走會走到隔壁島');
+  ok(groundAt(w, linked) === B, '走過去以後站在隔壁島上');
+  // 在橋上往旁邊走不會掉進海裡
+  let s = { x: 20, z: 0 };
+  for (let i = 0; i < 40; i++) s = step(s, { x: 0, z: 1 }, 0.3, linked, body);
+  ok(near(s.z, 1.5 - body) && near(s.x, 20), '在橋上往旁邊走會停在橋邊');
+  ok(groundAt({ x: 20, z: 0 }, linked) === bridge, '橋中間站在橋上');
+  ok(groundAt({ x: 9, z: 0 }, linked) === A, '橋頭（島和橋重疊）算在島上');
+  // 點海裡：拉到最近的可以走的地方（橋或島）
+  const t = clampTarget({ x: 20, z: 6 }, linked, body);
+  ok(near(t.x, 20) && near(t.z, 1.5 - body), '點橋旁邊的海，會走到橋邊');
+  // 斜的橋
+  const diag = { type: 'strip', ax: 0, az: 0, bx: 30, bz: 30, half: 1 };
+  const d = resolve({ x: 15, z: 18 }, { grounds: [diag], obstacles: [] }, body);
+  ok(Math.abs((-15 + d.z - d.x) / Math.SQRT2) <= 1 - body + 1e-6 || Math.abs((d.z - d.x) / Math.SQRT2) <= 1 - body + 1e-6, '斜的橋也會拉回橋上');
+  // 點對岸：沿著橋走過去
+  const walker = createWalker({ x: 0, z: 0 }, { speed: 4, body });
+  walker.goTo({ x: 40, z: 0 }, linked);
+  for (let i = 0; i < 400 && walker.target; i++) walker.update(0.05, null, linked);
+  ok(Math.hypot(walker.x - 40, walker.z) < 0.3, '點對岸的島，小公主會走過橋');
+  // 對岸不在橋的正前方：先走到橋頭、過橋，再走過去
+  const via = routeVia({ x: -5, z: 6 }, { x: 44, z: -6 }, linked);
+  ok(via.length === 2 && near(via[0].x, 8) && near(via[1].x, 32), '找到路：先到橋頭再到橋尾');
+  ok(routeVia({ x: 0, z: 0 }, { x: 3, z: 3 }, linked).length === 0, '同一座島直接走');
+  ok(routeVia({ x: 0, z: 0 }, { x: 40, z: 0 }, two).length === 0, '沒有橋就找不到路');
+  const w2 = createWalker({ x: -5, z: 6 }, { speed: 4, body });
+  w2.goTo({ x: 44, z: -6 }, linked);
+  for (let i = 0; i < 600 && w2.target; i++) w2.update(0.05, null, linked);
+  ok(Math.hypot(w2.x - 44, w2.z + 6) < 0.3, '點對岸斜邊的地方，也會繞到橋走過去');
+  // 三座島：A—B—C
+  const C = { type: 'circle', cx: 40, cz: 40, r: 10 };
+  const bc = { type: 'strip', ax: 40, az: 8, bx: 40, bz: 32, half: 1.5 };
+  const three = { grounds: [A, B, C, bridge, bc], obstacles: [] };
+  ok(routeVia({ x: 0, z: 0 }, { x: 40, z: 40 }, three).length === 4, '要過兩座橋也找得到路');
 }
 
 console.log(`walk: ${pass} 通過` + (fail.length ? `，${fail.length} 失敗：\n- ` + fail.join('\n- ') : ''));

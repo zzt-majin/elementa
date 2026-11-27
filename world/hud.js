@@ -14,6 +14,7 @@ export function createHud(root, text) {
   const mapBtn = $('#map');
   const enterBtn = $('#enter');
   let enterAction = null;
+  let flashTimer = null;
   if (enterBtn) enterBtn.addEventListener('click', () => enterAction?.());
   $('#site-title').textContent = text.siteTitle;
   hint.textContent = text.hint;
@@ -248,6 +249,45 @@ export function createHud(root, text) {
       }
       if (kind === 'tower' && extra.mix) nodes.push(mixBlock(extra.mix));
       open(nodes, onBack);
+    },
+
+    /**
+     * 建設面板（蓋橋）：b = { title, body, note, price, have, short, state: 'ready'|'short'|'locked'|'built', buildLabel, confirmLabel, onBuild }
+     * 錢夠的時候按兩次才蓋（第一次按鈕變成「確定要花…嗎？」），避免不小心按到。
+     */
+    showBridge(b, onBack) {
+      const nodes = [el('h2', '', b.title), el('p', '', b.body)];
+      const box = el('section', 'build-box');
+      if (b.state === 'built') box.append(el('p', 'best won', b.builtText || ''));
+      else if (b.state === 'locked') box.append(el('p', 'lock', b.lockedText || ''));
+      else {
+        box.append(el('p', 'build-price', b.price), el('p', 'muted', b.have));
+        if (b.state === 'short') box.append(el('p', 'lock', b.short));
+        const go = el('button', 'btn build-go', b.buildLabel);
+        go.type = 'button';
+        go.disabled = b.state !== 'ready';
+        let armed = false;
+        go.addEventListener('click', () => {
+          if (b.state !== 'ready') return;
+          if (!armed) { armed = true; go.textContent = b.confirmLabel; go.classList.add('armed'); return; }
+          go.disabled = true;
+          b.onBuild();
+        });
+        box.append(go);
+      }
+      nodes.push(box);
+      if (b.note) nodes.push(el('p', 'muted', b.note));
+      open(nodes, onBack);
+      panel.querySelector('.build-go:not(:disabled)')?.focus();
+    },
+
+    /** 下方提示文字暫時換成一句話（例如「橋蓋好了！」），幾秒後換回來 */
+    flash(t, ms = 4000) {
+      const before = hint.textContent;
+      hint.textContent = t;
+      hint.classList.add('flash');
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => { hint.classList.remove('flash'); if (hint.textContent === t) hint.textContent = before; }, ms);
     },
 
     close() { panel.hidden = true; hint.hidden = false; },

@@ -7,6 +7,13 @@
     { "code": "science", "subject": "自然", "name": "自然島", "position": [-42, 55], "size": 0.95, "accent": "#b5e8a0" },
     { "code": "social", "subject": "社會", "name": "社會島", "position": [42, 55], "size": 0.95, "accent": "#d7c2ff" }
   ],
+  "_bridges說明": "可以蓋哪些橋：from、to 是上面島的 code。小公主從 world.json 的 avatar.homeIsland 出發，要有一頭已經走得到才能蓋（現在每座都從數學島出發，價格一樣）。不寫 bridges 就是家到每一座島各一座。",
+  "bridges": [
+    { "from": "math", "to": "chinese" },
+    { "from": "math", "to": "english" },
+    { "from": "math", "to": "science" },
+    { "from": "math", "to": "social" }
+  ],
   "buildings": {
     "tower": { "label": "測驗塔", "does": "限時測驗" },
     "house": { "label": "學習屋", "does": "學習卡" },

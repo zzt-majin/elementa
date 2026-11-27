@@ -31,11 +31,13 @@ export function cloudSettings(raw = {}) {
  * fetchFn：和瀏覽器 fetch 一樣的函式
  * onStatus(kid, status, extra)：狀態改變時呼叫，status 是
  *   'saving' 正在存、'saved' 已存好、'offline' 連不上、'relogin' 密碼改過要重新登入、
- *   'rejected' 後台不收這筆（只留在這台裝置）
+ *   'rejected' 後台不收這筆（只留在這台裝置）、
+ *   'oldBackend' 後台還是舊版、不認得建設（建設留在待存清單，換新版後補存）
  * onProgress(kid, progress, settings)：後台回傳進度時呼叫，外面拿去合併
  * onHistory(kid, history)：後台回傳作答紀錄時呼叫（歐巴幣、寶石用），格式見 engine/economy.js
+ * onBuilds(kid, builds)：後台回傳建設（蓋好的橋）時呼叫，格式見 engine/build.js
  */
-export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onProgress = () => {}, onHistory = () => {}, now = () => Date.now() }) {
+export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onProgress = () => {}, onHistory = () => {}, onBuilds = () => {}, now = () => Date.now() }) {
   const enabled = !!settings.api;
   const SES = 'session', QUE = 'queue', SET = 'settings';
   let flushing = null;
@@ -72,6 +74,7 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
     }
     if (r.progress && typeof r.progress === 'object') onProgress(kid, r.progress, r.settings || null);
     if (Array.isArray(r.history)) onHistory(kid, r.history);
+    if (Array.isArray(r.builds)) onBuilds(kid, r.builds);
   }
 
   const api = {
@@ -80,6 +83,7 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
     /** 家長在試算表「設定」填的規則（學習卡開放時機、搶答賽秒數…），還沒登入過就是 null */
     settingsOf: (kid) => obj(store.get(SET))[kid] || null,
     pending: (kid) => queue().filter((x) => x.kid === kid).length,
+    pendingBuilds: (kid) => queue().filter((x) => x.kid === kid && x.type === 'build').length,
 
     /** 回傳 { ok } 或 { ok:false, error:'auth'|'nopw'|'net'|'off' } */
     async login(kid, password) {
@@ -125,12 +129,22 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
         retry: !game && !!summary.retry,
         ...(game ? { kind: 'game' } : {}),
       };
-      store.set(QUE, [...queue(), item].slice(-settings.queueMax));
+      push(item);
       api.flush();
       return true;
     },
 
-    /** 一筆一筆送出已登入小孩的待存成績。同時只會跑一個。 */
+    /** 蓋橋後呼叫：build 是 engine/build.js 的格式，存到試算表「建設」工作表 */
+    enqueueBuild(kid, build) {
+      if (!enabled || !kid || !build || !/^[\w-]{1,40}$/.test(build.id || '') || !/^[a-z0-9-]{1,60}$/.test(build.key || '')) return false;
+      const item = { t: build.id, kid, type: 'build', kind: build.kind, key: build.key, keyName: build.name || '', coins: build.coins, gems: build.gems || {}, at: build.at };
+      // 建設不能因為待存清單太長被擠掉（擠掉的話別台裝置就看不到這座橋）
+      push(item);
+      api.flush();
+      return true;
+    },
+
+    /** 一筆一筆送出已登入小孩的待存成績和建設。同時只會跑一個。 */
     flush() {
       if (!enabled) return Promise.resolve();
       if (!flushing) flushing = run().finally(() => { flushing = null; });
@@ -140,13 +154,14 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
 
   async function run() {
     const skip = new Set();
+    const later = new Set(); // 這一輪先跳過的建設（後台還是舊版、不認得「建設」時，留著下次再送）
     for (;;) {
       const s = sessions();
-      const item = queue().find((x) => s[x.kid] && !skip.has(x.kid));
+      const item = queue().find((x) => s[x.kid] && !skip.has(x.kid) && !later.has(x.t));
       if (!item) return;
       onStatus(item.kid, 'saving');
-      const { t, kid, ...rest } = item;
-      const r = await call({ action: 'save', name: kid, token: s[kid], id: t, ...rest });
+      const { t, kid, type, ...rest } = item;
+      const r = await call({ action: type === 'build' ? 'build' : 'save', name: kid, token: s[kid], id: t, ...rest });
       if (r.ok) {
         drop(t);
         got(kid, r);
@@ -155,6 +170,9 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
         setSession(kid, null);
         skip.add(kid);
         onStatus(kid, 'relogin');
+      } else if (r.error === 'bad' && type === 'build') {
+        later.add(t); // 不丟掉：家長換上新版 Apps Script 後就會補存
+        onStatus(kid, 'oldBackend');
       } else if (r.error === 'bad') {
         drop(t);
         onStatus(kid, 'rejected');
@@ -163,6 +181,14 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
         return; // 連不上就先停，等下次再試
       }
     }
+  }
+
+  /** 排進待存清單；太長時先丟最舊的成績，建設不丟（丟了別台裝置就看不到那座橋） */
+  function push(item) {
+    const q = queue();
+    const over = Math.max(0, q.length + 1 - settings.queueMax);
+    const gone = new Set(q.filter((x) => x.type !== 'build').slice(0, over));
+    store.set(QUE, [...q.filter((x) => !gone.has(x)), item]);
   }
 
   function drop(t) { store.set(QUE, queue().filter((x) => x.t !== t)); }

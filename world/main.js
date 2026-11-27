@@ -10,6 +10,8 @@ import { buildIsland, whatWasHit, walkAreaOf } from './islands.js';
 import { createControls } from './controls.js';
 import { makePrincess } from '../avatar/princess.js';
 import { createWalker, screenToGround, nearestDoor } from '../avatar/walk.js';
+import { bridgeConfig, bridgeLine, bridgeStrip, makeBridge, makeBridgeSite, makeMist } from './bridges.js';
+import { bridgePlan, reachable, canStart, createBuildBook } from '../engine/build.js';
 import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
 import { createQuizUI } from './quiz-ui.js';
@@ -18,7 +20,7 @@ import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
 import { materialize, mixLevel } from '../engine/generate.js';
 import { raceSettings, rulesFor, raceId, poolState, buildPool, createDrawer, raceSummary, shouldRecord } from '../games/quiz-race/race.js';
 import { createRaceUI } from '../games/quiz-race/race-ui.js';
-import { economyRules, computeWallet, createLedger, newEntryId, previewEarn } from '../engine/economy.js';
+import { economyRules, computeWallet, createLedger, newEntryId, previewEarn, canAfford } from '../engine/economy.js';
 
 const store = {
   get(k) { try { return localStorage.getItem('elementa.' + k); } catch { return null; } },
@@ -44,6 +46,8 @@ async function getJSON(url) {
  *   搶答賽結束也會呼叫 onResult，summary.kind 是 'game'，關卡代號是 game-<島的代號>。
  *   summary.id 是這筆作答的編號，送到試算表時一起存，帳本靠它合併本機和雲端的紀錄。
  *   world.ledger.merge(kid, history)＋world.refreshWallet()：雲端回傳作答紀錄時，合併後重算歐巴幣和寶石。
+ *   onBuild(kid, build)：蓋好一座橋時呼叫（存到試算表「建設」），build 的格式見 engine/build.js。
+ *   world.builds.merge(kid, builds)＋world.refreshBuilds(kid)：雲端回傳建設時，合併後重畫橋、重算歐巴幣。
  */
 export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
   const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig] = await Promise.all([
@@ -104,6 +108,10 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const rig = createCameraRig(view.camera, canvas, world.camera);
   const islandsGroup = new THREE.Group();
   view.scene.add(islandsGroup);
+  const bridgesGroup = new THREE.Group(); // 蓋好的橋、還沒蓋的虛線和浮標
+  view.scene.add(bridgesGroup);
+  const mistGroup = new THREE.Group(); // 還沒連上的島周圍的淡霧
+  view.scene.add(mistGroup);
 
   // 小孩：config/family.json 列的，加上關卡檔裡出現的（還沒有關卡的小孩也能登入，看到建造中的島）
   const familyKids = (Array.isArray(familyConfig?.kids) ? familyConfig.kids : []).filter((k) => typeof k === 'string' && k.trim()).map((k) => k.trim());
@@ -119,6 +127,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   // 歐巴幣和寶石：不記餘額，每次從作答紀錄照 config/economy.json 重算（engine/economy.js）
   const econ = { ...economyRules(economyConfig), currencyName: economyConfig?.currencyName || '' };
   const ledger = createLedger(localStorageStorage('elementa.ledger'));
+  // 蓋了哪些橋：每個小孩一份（engine/build.js）；花掉的歐巴幣從餘額扣
+  const builds = createBuildBook(localStorageStorage('elementa.builds'));
   const islandOfSubject = (s) => subjects.islands.find((i) => i.subject === s)?.code || '';
   /** 試算表來的紀錄沒有科目：從關卡代號找（一般關卡、綜合練習 xxx-mix-10、搶答賽 game-<島>） */
   function islandOf(e) {
@@ -130,7 +140,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     if (mix) { const s = levels.find((x) => x.meta.id.startsWith(mix[1] + '-')); if (s) return islandOfSubject(s.meta.subject); }
     return '';
   }
-  const walletOf = (k) => computeWallet({ history: ledger.history(k), spends: [], rules: econ, islandOf });
+  const walletOf = (k) => computeWallet({ history: ledger.history(k), spends: builds.effective(k), rules: econ, islandOf });
   function showWallet() {
     if (!kid) { hud.setWallet(null); return; }
     const w = walletOf(kid);
@@ -215,19 +225,158 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const doorDistance = world.village?.doorDistance ?? 1.6;
   const touch = !!window.matchMedia?.('(pointer: coarse)').matches;
   let mode = 'walk';
-  let area = null; // 小公主能走的地方（世界座標）；還沒蓋橋，只有自己的數學島
-  let door = null; // 現在站在哪一棟建築門口
-  const homeGroup = () => islandsGroup.children.find((g) => g.userData.island === homeCode);
+  let area = null; // 小公主能走的地方（世界座標）：數學島＋蓋好的橋連過去的島和橋
+  let door = null; // 現在站在哪一個門口（建築或橋頭）
   const playerPoint = () => princessModel.group.position;
   /** 回到自己數學島的出生點（一開始、切換姐姐／妹妹） */
   function placeAtHome() {
-    const g = homeGroup();
-    area = g ? walkAreaOf(g) : null;
+    area = computeArea();
     if (area) walker.place({ x: area.spawn.x, z: area.spawn.z, heading: 0 });
-    princessModel.group.position.set(walker.x, (area ? area.top : 0.9) + (g ? g.position.y : 0), walker.z);
+    princessModel.group.position.set(walker.x, area ? area.top : 0.9, walker.z);
     princessModel.group.rotation.y = walker.heading;
     door = null;
     hud.setEnter(null);
+  }
+
+  // ---------- 橋（世界設定第 4 步）----------
+  const bcfg = bridgeConfig(world.bridge);
+  const plan = bridgePlan(subjects, homeCode); // 可以蓋哪些橋：[{ key, from, to }]
+  const isl = (code) => subjects.islands.find((i) => i.code === code);
+  const lineOf = (b) => bridgeLine(isl(b.from), isl(b.to), world.island, bcfg);
+  const B = () => text.bridge || {};
+  let reach = new Set([homeCode]); // 現在走得到的島
+  const bridgeViews = new Map(); // key → { b, line, kind: 'built'|'site', view }
+  let growing = null; // 正在蓋的橋：{ key, t, view }
+  /** 這座島上要留給橋的路（不種樹）：島自己的座標裡的方向 */
+  function pathsFor(code) {
+    const out = [];
+    for (const b of plan) {
+      if (b.from !== code && b.to !== code) continue;
+      const u = lineOf(b).u;
+      out.push(b.from === code ? { x: u.x, z: u.z, half: bcfg.width / 2 } : { x: -u.x, z: -u.z, half: bcfg.width / 2 });
+    }
+    return out;
+  }
+  const priceText = () => fill(B().signSub, { n: econ.build.bridge?.coins ?? 0, coin: econ.currencyName || '歐巴幣' });
+  /** 畫橋、虛線、淡霧（照這個小孩蓋過的） */
+  function drawBridges() {
+    bridgesGroup.clear();
+    mistGroup.clear();
+    bridgeViews.clear();
+    growing = null;
+    const built = kid ? builds.built(kid) : new Set();
+    reach = reachable(plan, built, homeCode);
+    for (const b of plan) {
+      const line = lineOf(b);
+      if (built.has(b.key)) {
+        const v = makeBridge(line, colors, bcfg, b.key);
+        bridgesGroup.add(v.group);
+        bridgeViews.set(b.key, { b, line, kind: 'built', view: v });
+      } else if (canStart(b, reach)) {
+        const v = makeBridgeSite(line, colors, bcfg, b.key, B().signTitle || '', priceText());
+        bridgesGroup.add(v.group);
+        bridgeViews.set(b.key, { b, line, kind: 'site', view: v });
+      }
+    }
+    for (const def of subjects.islands) if (!reach.has(def.code)) mistGroup.add(makeMist(def, world.island, bcfg));
+  }
+  /** 小公主能走的地方：走得到的島＋蓋好的橋；門口：那些島上的建築＋還沒蓋的橋頭 */
+  function computeArea() {
+    const groups = islandsGroup.children.filter((g) => reach.has(g.userData.island));
+    if (!groups.length) return null;
+    const parts = groups.map((g) => walkAreaOf(g));
+    const home = parts.find((p) => p.island === homeCode) || parts[0];
+    const grounds = parts.map((p) => ({ type: 'circle', cx: p.cx, cz: p.cz, r: p.radius, island: p.island }));
+    const doors = parts.flatMap((p) => p.doors.map((d) => ({ ...d, id: d.island + ':' + d.kind })));
+    for (const [key, v] of bridgeViews) {
+      if (v.kind === 'built' && growing?.key !== key) grounds.push({ ...bridgeStrip(v.line), bridge: key });
+      if (v.kind === 'site') {
+        // 橋頭：站在走得到的那一頭的草地邊上
+        const fromSide = reach.has(v.b.from);
+        const end = fromSide ? v.line.a : v.line.b;
+        const dir = fromSide ? v.line.u : { x: -v.line.u.x, z: -v.line.u.z };
+        doors.push({ kind: 'bridge', key, id: 'bridge:' + key, x: end.x - dir.x * 0.8, z: end.z - dir.z * 0.8, face: Math.atan2(dir.x, dir.z), reach: Math.max(doorDistance, bcfg.width) });
+      }
+    }
+    return { grounds, obstacles: parts.flatMap((p) => p.obstacles), doors, spawn: home.spawn, top: home.top };
+  }
+  const otherEnd = (b) => (reach.has(b.from) ? b.to : b.from);
+
+  /** 點浮標、虛線，或站在橋頭按「蓋橋」：打開建設面板 */
+  function openBridge(key) {
+    const v = bridgeViews.get(key);
+    const b = v?.b || plan.find((x) => x.key === key);
+    if (!b) return;
+    focused = null;
+    lastBuilding = null;
+    walker.stop();
+    const T = B();
+    const coin = econ.currencyName || '歐巴幣';
+    const fromName = isl(reach.has(b.to) && !reach.has(b.from) ? b.to : b.from)?.name || '';
+    const toName = isl(otherEnd(b))?.name || '';
+    const price = econ.build.bridge || { coins: 0, gems: {} };
+    const w = kid ? walletOf(kid) : { coins: 0, gems: {} };
+    const pay = canAfford(w, price);
+    const built = v?.kind === 'built' || growing?.key === key;
+    const state = built ? 'built' : !canStart(b, reach) ? 'locked' : pay.ok ? 'ready' : 'short';
+    const target = isl(otherEnd(b));
+    const hasLevels = target && levelsFor(levels, { kid, subject: target.subject }).count > 0;
+    if (mode === 'map' && v) rig.focus(new THREE.Vector3(v.line.mid.x, 0, v.line.mid.z), 0.7);
+    hud.showBridge({
+      title: fill(T.title, { to: toName }),
+      body: fill(T.body, { from: fromName, to: toName }) + (hasLevels ? '' : ' ' + fill(T.emptyIsland, { to: toName })),
+      note: hasLevels && !built ? fill(T.learnNote, { to: toName }) : '',
+      price: fill(T.price, { n: price.coins, coin }),
+      have: fill(T.have, { n: w.coins, coin }),
+      short: fill(T.short, { n: pay.short.coins, coin }),
+      state,
+      builtText: T.built,
+      lockedText: fill(T.locked, { from: fromName }),
+      buildLabel: fill(T.build, { n: price.coins, coin }),
+      confirmLabel: fill(T.confirm, { n: price.coins, coin }),
+      onBuild: () => buildBridge(key),
+    }, backToAll);
+  }
+
+  /** 真的蓋下去：記帳、存到試算表、木板一片一片長出來，蓋好後才能走 */
+  function buildBridge(key) {
+    const v = bridgeViews.get(key);
+    if (!kid || !v || v.kind !== 'site' || growing) return false;
+    const price = econ.build.bridge || { coins: 0, gems: {} };
+    if (!canAfford(walletOf(kid), price).ok || !canStart(v.b, reach)) { openBridge(key); return false; }
+    const rec = { id: newEntryId(), at: Date.now(), kind: 'bridge', key, coins: price.coins, gems: price.gems || {} };
+    if (!builds.add(kid, rec)) { openBridge(key); return false; }
+    try { hooks.onBuild?.(kid, { ...rec, name: isl(v.b.from)?.name + '—' + isl(v.b.to)?.name }); } catch (err) { console.error(err); }
+    showWallet();
+    hud.close();
+    door = null;
+    hud.setEnter(null);
+    // 虛線換成正在長的橋
+    bridgesGroup.remove(v.view.group);
+    const nb = makeBridge(v.line, colors, bcfg, key);
+    nb.grow(0);
+    bridgesGroup.add(nb.group);
+    bridgeViews.set(key, { ...v, kind: 'built', view: nb });
+    growing = { key, t: 0, view: nb, line: v.line, b: v.b };
+    // 鏡頭飛去看橋長出來
+    rig.flyTo(new THREE.Vector3(v.line.mid.x, 1, v.line.mid.z), v.line.len * 0.9 + 12, v.line.len * 0.55 + 10);
+    return true;
+  }
+  /** 每一格：橋長出來；長好了就能走、霧散掉、鏡頭回到小公主 */
+  function stepGrowing(dt) {
+    if (!growing) return;
+    growing.t += dt / Math.max(0.2, bcfg.growSeconds);
+    growing.view.grow(growing.t);
+    const to = otherEnd(growing.b);
+    const mist = mistGroup.children.find((m) => m.userData.mist === to);
+    if (mist) mist.material.opacity = bcfg.mist.opacity * Math.max(0, 1 - growing.t);
+    if (growing.t < 1.25) return; // 長好後停一下再回去
+    const done = growing;
+    const toName = isl(to)?.name || '';
+    drawBridges(); // 重新算走得到的島（新的島上的橋頭、淡霧也一起更新）
+    area = computeArea();
+    if (mode === 'walk') rig.follow(playerPoint); else rig.focus(new THREE.Vector3(done.line.mid.x, 0, done.line.mid.z), 0.7);
+    hud.flash(fill(B().done, { to: toName }), 5000);
   }
   const showLabels = () => { for (const g of islandsGroup.children) if (g.userData.label) g.userData.label.visible = mode === 'map'; };
 
@@ -240,10 +389,12 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
         village: world.village,
         levelCount: info.count,
         labels: { construction: text.construction, count: text.islandCount },
+        paths: pathsFor(def.code),
       });
       g.userData.phase = def.position[0] * 0.3 + def.position[1] * 0.2;
       islandsGroup.add(g);
     }
+    drawBridges();
     showWallet();
     placeAtHome();
     showLabels();
@@ -506,7 +657,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   function enterDoor() {
     if (mode !== 'walk' || !door || hud.isOpen() || paused) return;
     walker.stop();
-    openBuilding(homeCode, door.kind);
+    if (door.kind === 'bridge') openBridge(door.key);
+    else openBuilding(door.island, door.kind);
   }
 
   const controls = createControls({
@@ -527,7 +679,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const rect = canvas.getBoundingClientRect();
     ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     raycaster.setFromCamera(ndc, view.camera);
-    const hits = raycaster.intersectObjects(islandsGroup.children, true);
+    const hits = raycaster.intersectObjects([...islandsGroup.children, ...bridgesGroup.children], true);
     for (const h of hits) { const w = whatWasHit(h.object); if (w) return { ...w, point: h.point || null }; }
     return null;
   }
@@ -542,8 +694,13 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     if (!area) return;
     if (hud.isOpen()) backToAll();
     const w = hitAt(e);
-    if (w && w.building && w.island === homeCode) {
-      const d = area.doors.find((x) => x.kind === w.building);
+    if (w && w.bridge) {
+      if (bridgeViews.get(w.bridge)?.kind === 'site') { openBridge(w.bridge); return; }
+    } else if (w && w.island && !reach.has(w.island)) {
+      openIsland(w.island); // 還沒蓋橋的島：直接打開清單（沒蓋橋也能學）
+      return;
+    } else if (w && w.building) {
+      const d = area.doors.find((x) => x.kind === w.building && x.island === w.island);
       if (d) { walker.goTo(d, area, d.face); return; }
     }
     const p = (w && w.point) || groundAt();
@@ -556,6 +713,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     if (mode === 'walk') { tapWalk(e); return; }
     const w = hitAt(e);
     if (!w) return;
+    if (w.bridge) { if (bridgeViews.get(w.bridge)?.kind === 'site') openBridge(w.bridge); return; }
     if (w.building) openBuilding(w.island, w.building);
     else openIsland(w.island);
   });
@@ -592,6 +750,14 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     ledger,
     /** 雲端合併作答紀錄後呼叫，重算畫面上的歐巴幣和寶石 */
     refreshWallet: () => showWallet(),
+    builds,
+    /** 雲端合併建設後呼叫：重畫橋、重算走得到的島和歐巴幣 */
+    refreshBuilds(k = kid) {
+      if (k !== kid || growing) { showWallet(); return; }
+      drawBridges();
+      area = computeArea();
+      showWallet();
+    },
     wallet: (k = kid) => walletOf(k),
     refresh() {
       if (quizRoot.hidden === false || cardsUI?.isOpen || raceUI?.isOpen) return; // 作答、看卡中不動，關掉後會自己重畫
@@ -611,6 +777,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       g.position.y = Math.sin(t * bob.bobSpeed + g.userData.phase) * (bob.bobAmount || 0);
       g.traverse((o) => { if (o.name === 'flag') o.rotation.y = Math.sin(t * 3 + g.userData.phase) * 0.35; });
     }
+    for (const v of bridgeViews.values()) if (v.view.buoy) v.view.buoy.position.y = Math.sin(t * 1.6 + v.line.len) * 0.15;
+    stepGrowing(dt);
     stepPrincess(dt);
     rig.update(dt);
     view.update(t, rig.target);
@@ -619,25 +787,35 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
 
   /** 每一格：小公主走路、動畫、門口按鈕 */
   function stepPrincess(dt) {
-    const free = mode === 'walk' && !hud.isOpen();
+    const free = mode === 'walk' && !hud.isOpen() && !growing; // 蓋橋動畫時先不能走
     if (area) {
       const ax = controls.axis();
       const dir = free ? screenToGround(ax.x, ax.y, rig.yaw()) : { x: 0, z: 0 };
-      if (free || walker.target) walker.update(dt, dir, area);
-      const g = homeGroup();
-      princessModel.group.position.set(walker.x, area.top + (g ? g.position.y : 0), walker.z);
+      if (free || (walker.target && !growing)) walker.update(dt, dir, area);
+      princessModel.group.position.set(walker.x, area.top, walker.z);
       princessModel.group.rotation.y = walker.heading;
     }
     princessModel.animate(dt, walker.moving);
     const want = free && area ? nearestDoor(walker, area.doors, doorDistance) : null;
-    if ((want?.kind || null) !== (door?.kind || null)) {
+    if ((want?.id || null) !== (door?.id || null)) {
       door = want;
-      const b = want ? subjects.buildings[want.kind] : null;
-      hud.setEnter(b ? fill(W.enter || '{name}', { name: b.label }) : null, enterDoor);
+      let label = null;
+      if (want?.kind === 'bridge') {
+        const b = bridgeViews.get(want.key)?.b;
+        label = b ? fill(B().door, { to: isl(otherEnd(b))?.name || '' }) : null;
+      } else if (want) {
+        const b = subjects.buildings[want.kind];
+        label = b ? fill(W.enter || '{name}', { name: b.label }) : null;
+      }
+      hud.setEnter(label, enterDoor);
     }
   }
 
-  return { ...api, openIsland, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI };
+  return {
+    ...api, openIsland, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI, openBridge,
+    /** 檢查用（自動測試讀小公主在哪、走得到哪些島）；網站本身不用 */
+    debug: { walker, area: () => area, reach: () => [...reach], mist: () => mistGroup.children.map((m) => m.userData.mist), bridges: () => [...bridgeViews].map(([k, v]) => k + ':' + v.kind), growing: () => !!growing },
+  };
 }
 
 function webglOK() {

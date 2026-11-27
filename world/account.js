@@ -11,6 +11,7 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
   let cloud = null;
   let ui = null;
   const early = []; // 雲端還沒準備好之前交的卷，準備好再排進去
+  const earlyBuilds = []; // 雲端還沒準備好之前蓋的橋
   const later = new Set(); // 這次打開網站時按過「先不登入」的小孩
   const status = {}; // 每個小孩最後的同步狀態
   const lastSettings = {}; // 每個小孩上次拿到的試算表「設定」，有變才重畫
@@ -42,6 +43,10 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
         // 別台裝置交的卷也算進歐巴幣和寶石
         if (world.ledger?.merge(kid, history)) world.refreshWallet?.();
       },
+      onBuilds(kid, builds) {
+        // 別台裝置蓋的橋也畫出來、也扣錢
+        if (world.builds?.merge(kid, builds)) world.refreshBuilds?.(kid);
+      },
     });
     ui = createLoginUI(hudRoot, world.text.login || {}, {
       kid: () => world.kid(),
@@ -50,6 +55,7 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
       later,
     });
     for (const s of early.splice(0)) cloud.enqueue(s);
+    for (const [k, b] of earlyBuilds.splice(0)) cloud.enqueueBuild(k, b);
     ui.render();
     sync();
 
@@ -72,6 +78,11 @@ export function createAccount({ hudRoot, configPath = 'config/', fetchFn = globa
       onResult(summary) {
         if (cloud) { cloud.enqueue(summary); ui?.render(); }
         else early.push(summary);
+      },
+      /** 蓋好一座橋：存到試算表「建設」工作表 */
+      onBuild(kid, build) {
+        if (cloud) { cloud.enqueueBuild(kid, build); ui?.render(); }
+        else earlyBuilds.push([kid, build]);
       },
     },
     /** 給之後的學習屋、搶答賽讀家長在試算表「設定」填的規則 */
@@ -132,9 +143,10 @@ function createLoginUI(hudRoot, t, { kid, cloud, status, later }) {
     const msg = s === 'saving' ? t.saving
       : s === 'offline' ? t.offline
       : s === 'rejected' ? t.rejected
+      : s === 'oldBackend' ? t.oldBackend
       : n ? fill(t.pending, { n })
       : s === 'saved' ? t.saved : '';
-    if (msg) chip.append(el('span', 'sync' + (s === 'offline' || s === 'rejected' ? ' warn' : ''), msg));
+    if (msg) chip.append(el('span', 'sync' + (s === 'offline' || s === 'rejected' || s === 'oldBackend' ? ' warn' : ''), msg));
     const out = el('button', 'link', confirmLogout ? t.logoutConfirm : t.logout);
     out.type = 'button';
     out.addEventListener('click', () => {

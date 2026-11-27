@@ -14,7 +14,7 @@ const API = 'https://script.google.com/macros/s/AKfy-test_123/exec';
 
 /** 假後台：帳號、進度、作答紀錄都在記憶體；down=true 時模擬沒網路 */
 function fakeBackend() {
-  const b = { accounts: { 姐姐: 'pw1', 妹妹: '' }, progress: {}, log: [], down: false, calls: [] };
+  const b = { accounts: { 姐姐: 'pw1', 妹妹: '' }, progress: {}, log: [], builds: [], down: false, oldBackend: false, calls: [] };
   const tok = (n) => 'tok-' + n + '-' + b.accounts[n];
   b.fetch = async (url, init) => {
     b.calls.push(JSON.parse(init.body));
@@ -35,6 +35,12 @@ function fakeBackend() {
       return { ok: true, token: tok(name), progress: mine(), settings: { cards: '測驗後' }, history: hist() };
     }
     if (d.token !== tok(name)) return { ok: false, error: 'auth' };
+    const mineBuilds = () => b.builds.filter((x) => x.name === name).map(({ name: _n, ...x }) => x);
+    if (d.action === 'build') {
+      if (b.oldBackend) return { ok: false, error: 'bad' }; // 舊版 Code.gs 不認得
+      if (!b.builds.some((x) => x.name === name && (x.id === d.id || x.key === d.key))) b.builds.push({ name, id: d.id, at: d.at, kind: d.kind, key: d.key, coins: d.coins, gems: d.gems });
+      return { ok: true, builds: mineBuilds() };
+    }
     if (d.action === 'load') return { ok: true, progress: mine(), settings: { cards: '測驗後' }, history: hist() };
     if (d.action === 'save') {
       if (!/^[a-z0-9-]{1,60}$/.test(d.level) || !(d.score <= d.total)) return { ok: false, error: 'bad' };
@@ -56,6 +62,7 @@ function setup(backend, extra = {}) {
   const progress = createProgress(memoryStorage());
   const statuses = [];
   const histories = [];
+  const builds = [];
   const store = extra.store || memoryStore();
   const cloud = createCloud({
     settings: cloudSettings({ api: API, timeoutMs: 5000 }),
@@ -64,8 +71,9 @@ function setup(backend, extra = {}) {
     onStatus: (kid, s) => statuses.push(kid + ':' + s),
     onProgress: (kid, p) => progress.merge(kid, p),
     onHistory: (kid, h) => histories.push([kid, h]),
+    onBuilds: (kid, x) => builds.push([kid, x]),
   });
-  return { cloud, progress, statuses, store, histories };
+  return { cloud, progress, statuses, store, histories, builds };
 }
 
 const summary = (over = {}) => ({ kid: '姐姐', level: 'jie-6a-math-quiz-01', levelName: '測試', score: 5, total: 7, used: 300, timeUp: false, retry: false, ...over });
@@ -241,6 +249,70 @@ await test('不合格的編號就自己編一個', async () => {
   cloud.enqueue(summary({ id: '<script>' }));
   await cloud.flush();
   assert.match(b.log[0].id, /^\d+-[a-z0-9]+$/);
+});
+
+const bridge = (over = {}) => ({ id: '1764230000000-brg001', at: 1764230000000, kind: 'bridge', key: 'math-chinese', name: '數學島—國語島的橋', coins: 120, gems: {}, ...over });
+
+await test('蓋橋：送到後台「建設」，回傳的建設交給 onBuilds', async () => {
+  const b = fakeBackend();
+  const { cloud, builds } = setup(b);
+  await cloud.login('姐姐', 'pw1');
+  assert.equal(cloud.enqueueBuild('姐姐', bridge()), true);
+  await cloud.flush();
+  assert.equal(b.builds.length, 1);
+  assert.equal(b.builds[0].key, 'math-chinese');
+  assert.equal(b.builds[0].coins, 120);
+  assert.equal(builds.at(-1)[1][0].id, '1764230000000-brg001');
+  assert.equal(cloud.pending('姐姐'), 0);
+});
+
+await test('沒登入時蓋的橋先排著，登入後補存', async () => {
+  const b = fakeBackend();
+  const { cloud } = setup(b);
+  cloud.enqueueBuild('姐姐', bridge());
+  await cloud.flush();
+  assert.equal(b.builds.length, 0);
+  assert.equal(cloud.pendingBuilds('姐姐'), 1);
+  await cloud.login('姐姐', 'pw1');
+  await cloud.flush();
+  assert.equal(b.builds.length, 1);
+});
+
+await test('後台還是舊版：建設不丟掉，成績照存，換新版後補存', async () => {
+  const b = fakeBackend();
+  b.oldBackend = true;
+  const { cloud, statuses } = setup(b);
+  await cloud.login('姐姐', 'pw1');
+  cloud.enqueueBuild('姐姐', bridge());
+  cloud.enqueue(summary({ id: 'after-build' }));
+  await cloud.flush();
+  assert.equal(b.log.length, 1, '排在建設後面的成績照樣存');
+  assert.equal(cloud.pendingBuilds('姐姐'), 1);
+  assert.ok(statuses.includes('姐姐:oldBackend'));
+  b.oldBackend = false;
+  await cloud.flush();
+  assert.equal(b.builds.length, 1);
+  assert.equal(cloud.pending('姐姐'), 0);
+});
+
+await test('待存清單太長時，擠掉的是舊成績，不是建設', async () => {
+  const b = fakeBackend();
+  const store = memoryStore();
+  const cloud = createCloud({ settings: cloudSettings({ api: API, queueMax: 10 }), store, fetchFn: b.fetch });
+  cloud.enqueueBuild('姐姐', bridge());
+  for (let i = 0; i < 15; i++) cloud.enqueue(summary({ id: 'q-' + i }));
+  await cloud.flush();
+  const q = store.get('queue');
+  assert.equal(q.length, 10);
+  assert.ok(q.some((x) => x.type === 'build'));
+  assert.equal(q.at(-1).t, 'q-14');
+});
+
+await test('不合格的建設不送', () => {
+  const b = fakeBackend();
+  const { cloud } = setup(b);
+  assert.equal(cloud.enqueueBuild('姐姐', bridge({ key: 'Math Chinese' })), false);
+  assert.equal(cloud.enqueueBuild('姐姐', bridge({ id: '<x>' })), false);
 });
 
 console.log(passed + ' 項通過' + (process.exitCode ? '，有失敗' : ''));

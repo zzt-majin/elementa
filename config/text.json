@@ -77,7 +77,8 @@
     "saved": "已存到雲端",
     "pending": "還有 {n} 筆等著存",
     "offline": "還沒存到雲端，連上網路會再試",
-    "rejected": "有一筆紀錄雲端不收，只留在這台裝置"
+    "rejected": "有一筆紀錄雲端不收，只留在這台裝置",
+    "oldBackend": "橋先記在這台裝置，試算表的進度後台要換新版才存得進去"
   },
   "cards": {
     "ruleLine": "學習卡開放：{rule}",
@@ -224,5 +225,23 @@
     "todayFull": "今天的搶答賽{coin}拿滿了，明天再來！還是可以練習、拿{gem}",
     "todayFullNoGem": "今天的搶答賽{coin}拿滿了，明天再來！",
     "bestTarget": "個人最高紀錄：答對 {n} 題。答對 {m} 題以上，就能多拿 +{bonus} {coin}！"
+  },
+  "bridge": {
+    "_說明": "蓋橋（世界設定第 4 步）。{from}／{to} 換成島名，{n} 是數字，{coin} 是歐巴幣的名字。",
+    "signTitle": "蓋橋",
+    "signSub": "{n} {coin}",
+    "door": "蓋到{to}的橋",
+    "title": "蓋一座橋到{to}",
+    "body": "橋蓋好以後，小公主就能從{from}走到{to}。",
+    "learnNote": "還沒蓋橋也能學：按右上角「地圖」，點{to}就能進去。",
+    "emptyIsland": "{to}的題目還在準備中，可以先走過去看看。",
+    "price": "蓋橋要花 {n} {coin}",
+    "have": "你現在有 {n} {coin}",
+    "short": "還差 {n} {coin}。到測驗塔寫測驗、到遊戲帳篷玩搶答賽，就能賺{coin}！",
+    "build": "蓋橋（花 {n} {coin}）",
+    "confirm": "確定要花 {n} {coin}嗎？再按一次",
+    "locked": "要先蓋好通到{from}的橋，才能蓋這一座。",
+    "built": "這座橋已經蓋好了。",
+    "done": "橋蓋好了！走過去看看{to}吧"
   }
 }
