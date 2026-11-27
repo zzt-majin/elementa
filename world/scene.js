@@ -10,19 +10,23 @@ export function createScene(canvas, sceneColors, cfg) {
 
   const scene = new THREE.Scene();
   scene.background = skyTexture(sceneColors.skyTop, sceneColors.skyBottom);
-  scene.fog = new THREE.Fog(sceneColors.skyBottom, 70, 170);
+  scene.fog = new THREE.Fog(sceneColors.skyBottom, cfg.fog?.near ?? 70, cfg.fog?.far ?? 170);
 
-  const camera = new THREE.PerspectiveCamera(cfg.camera.fov, 1, 0.1, 400);
+  const camera = new THREE.PerspectiveCamera(cfg.camera.fov, 1, 0.1, cfg.camera.far || 400);
 
   scene.add(new THREE.HemisphereLight(sceneColors.skyTop, sceneColors.sand, 1.6));
   const sun = new THREE.DirectionalLight('#fff6e8', 2.2);
-  sun.position.set(25, 40, 18);
+  // 太陽跟著鏡頭看的地方移動，陰影只畫附近（島很大，整片都畫陰影會太糊、太慢）
+  const SUN = new THREE.Vector3(25, 40, 18);
+  sun.position.copy(SUN);
   sun.castShadow = !!cfg.quality.shadows;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
-  sc.left = -35; sc.right = 35; sc.top = 35; sc.bottom = -35; sc.near = 1; sc.far = 120;
+  const half = cfg.shadow?.size || 35;
+  sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.near = 1; sc.far = 140;
   sun.shadow.bias = -0.0005;
   scene.add(sun);
+  scene.add(sun.target);
 
   const sea = makeSea(sceneColors, cfg.sea);
   scene.add(sea.mesh);
@@ -39,7 +43,14 @@ export function createScene(canvas, sceneColors, cfg) {
 
   return {
     renderer, scene, camera,
-    update(t) { sea.update(t); },
+    /** focus：鏡頭看的地方（太陽和陰影跟過去） */
+    update(t, focus) {
+      sea.update(t);
+      if (focus) {
+        sun.target.position.set(focus.x, 0, focus.z);
+        sun.position.set(focus.x + SUN.x, SUN.y, focus.z + SUN.z);
+      }
+    },
     render() { renderer.render(scene, camera); },
   };
 }
@@ -60,7 +71,7 @@ function skyTexture(top, bottom) {
 }
 
 function makeSea(colors, cfg) {
-  const geo = new THREE.PlaneGeometry(cfg.size, cfg.size, 70, 70);
+  const geo = new THREE.PlaneGeometry(cfg.size, cfg.size, cfg.segments || 70, cfg.segments || 70);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   const base = Float32Array.from(pos.array);

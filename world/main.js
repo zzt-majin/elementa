@@ -6,7 +6,10 @@ import { quizSettings, resultSummary, mmss } from '../engine/quiz.js';
 import { createProgress, localStorageStorage } from '../engine/progress.js';
 import { createScene } from './scene.js';
 import { createCameraRig } from './camera.js';
-import { buildIsland, whatWasHit } from './islands.js';
+import { buildIsland, whatWasHit, walkAreaOf } from './islands.js';
+import { createControls } from './controls.js';
+import { makePrincess } from '../avatar/princess.js';
+import { createWalker, screenToGround, nearestDoor } from '../avatar/walk.js';
 import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
 import { createQuizUI } from './quiz-ui.js';
@@ -201,12 +204,40 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     return rulesFor(sheet, raceConf);
   };
 
+  // ---------- 3D 小公主（avatar/）----------
+  // mode：'walk' 鏡頭跟著小公主，方向鍵／點地面走路，走到門口進建築；'map' 拉遠看全部的島，點島打開清單
+  const av = world.avatar || {};
+  const W = text.walk || {};
+  const homeCode = subjects.islands.some((i) => i.code === av.homeIsland) ? av.homeIsland : subjects.islands[0]?.code;
+  const princessModel = makePrincess(princess, av);
+  view.scene.add(princessModel.group);
+  const walker = createWalker({ x: 0, z: 0, heading: 0 }, { speed: av.speed, body: av.body });
+  const doorDistance = world.village?.doorDistance ?? 1.6;
+  const touch = !!window.matchMedia?.('(pointer: coarse)').matches;
+  let mode = 'walk';
+  let area = null; // 小公主能走的地方（世界座標）；還沒蓋橋，只有自己的數學島
+  let door = null; // 現在站在哪一棟建築門口
+  const homeGroup = () => islandsGroup.children.find((g) => g.userData.island === homeCode);
+  const playerPoint = () => princessModel.group.position;
+  /** 回到自己數學島的出生點（一開始、切換姐姐／妹妹） */
+  function placeAtHome() {
+    const g = homeGroup();
+    area = g ? walkAreaOf(g) : null;
+    if (area) walker.place({ x: area.spawn.x, z: area.spawn.z, heading: 0 });
+    princessModel.group.position.set(walker.x, (area ? area.top : 0.9) + (g ? g.position.y : 0), walker.z);
+    princessModel.group.rotation.y = walker.heading;
+    door = null;
+    hud.setEnter(null);
+  }
+  const showLabels = () => { for (const g of islandsGroup.children) if (g.userData.label) g.userData.label.visible = mode === 'map'; };
+
   function rebuild() {
     islandsGroup.clear();
     for (const def of subjects.islands) {
       const info = levelsFor(levels, { kid, subject: def.subject });
       const g = buildIsland(def, colors, {
-        radius: world.island.radius,
+        island: world.island,
+        village: world.village,
         levelCount: info.count,
         labels: { construction: text.construction, count: text.islandCount },
       });
@@ -214,8 +245,13 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       islandsGroup.add(g);
     }
     showWallet();
+    placeAtHome();
+    showLabels();
     hud.setKids(kids, kid, (k) => {
-      kid = k; store.set('kid', k); rebuild(); if (focused) openIsland(focused);
+      kid = k; store.set('kid', k); rebuild();
+      // 每人一份群島：小公主回到自己的數學島
+      if (mode === 'map' && focused) openIsland(focused);
+      else { focused = null; lastBuilding = null; hud.close(); if (mode === 'walk') rig.follow(playerPoint, { snap: true }); }
       try { hooks.onKidChange?.(k); } catch (err) { console.error(err); }
     });
   }
@@ -230,7 +266,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     focused = code;
     lastBuilding = null;
     const g = groupOf(code);
-    rig.focus(g.position, def.size || 1);
+    if (mode === 'map') rig.focus(g.position, def.size || 1);
     hud.showIsland(def, levelsFor(levels, { kid, subject: def.subject }), subjects.buildings, (kind) => openBuilding(code, kind), backToAll);
   }
 
@@ -241,7 +277,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     focused = code;
     lastBuilding = { code, kind };
     const g = groupOf(code);
-    rig.focus(g.position, (def.size || 1) * 0.8);
+    if (mode === 'map') rig.focus(g.position, (def.size || 1) * 0.8);
     hud.showBuilding(def, kind, subjects.buildings[kind], info, {
       minutes: minutesOf,
       mmss,
@@ -252,7 +288,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       mix: kind === 'tower' && presets.length ? mixExtra(def, info) : null,
       house: kind === 'house' && cardsUI ? houseExtra(code) : null,
       tent: kind === 'tent' && raceUI ? tentExtra(def, info) : null,
-    }, () => openIsland(code));
+    }, () => (mode === 'walk' ? backToAll() : openIsland(code))); // 走路模式按返回：回到小公主
   }
 
   function houseExtra(code) {
@@ -384,8 +420,40 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     focused = null;
     lastBuilding = null;
     hud.close();
-    rig.overview();
+    if (mode === 'map') rig.overview();
   }
+
+  /** 切換「跟著小公主」和「地圖」 */
+  function setMode(m) {
+    mode = m;
+    focused = null;
+    lastBuilding = null;
+    hud.close();
+    walker.stop();
+    door = null;
+    hud.setEnter(null);
+    showLabels();
+    if (m === 'map') rig.overview(); else rig.follow(playerPoint);
+    hud.setMap(m === 'map', () => setMode(mode === 'map' ? 'walk' : 'map'));
+    hud.setHint(m === 'map' ? (W.hintMap || text.hint) : touch ? (W.hintTouch || text.hint) : text.hint);
+  }
+
+  /** 走到門口後按「進入」或空白鍵 */
+  function enterDoor() {
+    if (mode !== 'walk' || !door || hud.isOpen() || paused) return;
+    walker.stop();
+    openBuilding(homeCode, door.kind);
+  }
+
+  const controls = createControls({
+    enabled: () => mode === 'walk' && !paused && !hud.isOpen(),
+    onAction: enterDoor,
+    onEscape() {
+      if (paused) return; // 作答、看卡時交給那個畫面自己處理
+      if (hud.isOpen()) backToAll();
+      else if (mode === 'map') setMode('walk');
+    },
+  });
 
   // 點擊：按下和放開位置差不多才算點，拖曳不算
   const raycaster = new THREE.Raycaster();
@@ -396,12 +464,32 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     raycaster.setFromCamera(ndc, view.camera);
     const hits = raycaster.intersectObjects(islandsGroup.children, true);
-    for (const h of hits) { const w = whatWasHit(h.object); if (w) return w; }
+    for (const h of hits) { const w = whatWasHit(h.object); if (w) return { ...w, point: h.point || null }; }
     return null;
+  }
+  /** 點到海上：和草地同高的平面上的那一點（hitAt 之後呼叫，用同一條射線） */
+  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.9);
+  function groundAt() {
+    const p = new THREE.Vector3();
+    return raycaster.ray.intersectPlane(ground, p) ? p : null;
+  }
+  /** 走路模式點畫面：點建築就走到它的門口，點地面就走過去（點海裡會走到岸邊） */
+  function tapWalk(e) {
+    if (!area) return;
+    if (hud.isOpen()) backToAll();
+    const w = hitAt(e);
+    if (w && w.building && w.island === homeCode) {
+      const d = area.doors.find((x) => x.kind === w.building);
+      if (d) { walker.goTo(d, area, d.face); return; }
+    }
+    const p = (w && w.point) || groundAt();
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.z)) walker.goTo({ x: p.x, z: p.z }, area);
   }
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
   canvas.addEventListener('pointerup', (e) => {
     if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
+    if (paused) return;
+    if (mode === 'walk') { tapWalk(e); return; }
     const w = hitAt(e);
     if (!w) return;
     if (w.building) openBuilding(w.island, w.building);
@@ -409,7 +497,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   });
   canvas.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
-    canvas.style.cursor = hitAt(e) ? 'pointer' : 'grab';
+    canvas.style.cursor = mode === 'walk' || hitAt(e) ? 'pointer' : 'grab';
   });
 
   // 音樂：第一次點畫面才開始（瀏覽器規定）
@@ -429,7 +517,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   syncMute();
 
   loading.hidden = true;
-  rig.overview();
+  setMode('walk');
+  rig.follow(playerPoint, { snap: true });
 
   const api = {
     progress,
@@ -454,16 +543,37 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const dt = Math.min(clock.getDelta(), 0.1);
     if (paused) return;
     const t = clock.elapsedTime;
-    view.update(t);
     for (const g of islandsGroup.children) {
-      g.position.y = Math.sin(t * bob.bobSpeed + g.userData.phase) * bob.bobAmount;
+      g.position.y = Math.sin(t * bob.bobSpeed + g.userData.phase) * (bob.bobAmount || 0);
       g.traverse((o) => { if (o.name === 'flag') o.rotation.y = Math.sin(t * 3 + g.userData.phase) * 0.35; });
     }
+    stepPrincess(dt);
     rig.update(dt);
+    view.update(t, rig.target);
     view.render();
   });
 
-  return { ...api, openIsland, backToAll, quiz, cards: cardsUI, race: raceUI };
+  /** 每一格：小公主走路、動畫、門口按鈕 */
+  function stepPrincess(dt) {
+    const free = mode === 'walk' && !hud.isOpen();
+    if (area) {
+      const ax = controls.axis();
+      const dir = free ? screenToGround(ax.x, ax.y, rig.yaw()) : { x: 0, z: 0 };
+      if (free || walker.target) walker.update(dt, dir, area);
+      const g = homeGroup();
+      princessModel.group.position.set(walker.x, area.top + (g ? g.position.y : 0), walker.z);
+      princessModel.group.rotation.y = walker.heading;
+    }
+    princessModel.animate(dt, walker.moving);
+    const want = free && area ? nearestDoor(walker, area.doors, doorDistance) : null;
+    if ((want?.kind || null) !== (door?.kind || null)) {
+      door = want;
+      const b = want ? subjects.buildings[want.kind] : null;
+      hud.setEnter(b ? fill(W.enter || '{name}', { name: b.label }) : null, enterDoor);
+    }
+  }
+
+  return { ...api, openIsland, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI };
 }
 
 function webglOK() {

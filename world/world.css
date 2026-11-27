@@ -71,3 +71,12 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
 .w-icon { display: inline-block; width: 16px; height: 16px; }
 .coin-icon { border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff6c4, #f5c842 55%, #c99a12); box-shadow: inset 0 0 0 1.5px #b8860b; }
 .gem-icon { background: linear-gradient(135deg, #fff 0%, var(--gem, #7fd4f5) 45%, var(--gem, #7fd4f5) 70%, rgba(0,0,0,.25) 100%); clip-path: polygon(50% 0, 100% 38%, 50% 100%, 0 38%); }
+
+/* 小公主：畫面下方的「進入」大按鈕、右上角的地圖按鈕 */
+.enter { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 30px; border: 0; border-radius: 999px; background: var(--main); color: #fff; font: 700 clamp(22px, 3.2vw, 28px) "LXGW WenKai TC", serif; cursor: pointer; box-shadow: 0 5px 0 var(--deep), 0 12px 28px rgba(90, 40, 70, .28); animation: enter-pop .25s ease-out; white-space: nowrap; }
+.enter:active { transform: translateX(-50%) translateY(3px); box-shadow: 0 2px 0 var(--deep); }
+.enter-key { font: 500 13px "Noto Sans TC", sans-serif; padding: 3px 8px; border-radius: 8px; background: rgba(255,255,255,.28); }
+.enter-key:empty { display: none; }
+@media (pointer: coarse) { .enter-key { display: none; } }
+@keyframes enter-pop { from { transform: translateX(-50%) scale(.8); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+.map-btn[aria-pressed="true"] { background: var(--deep); }

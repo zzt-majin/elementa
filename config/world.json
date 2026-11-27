@@ -1,29 +1,57 @@
 {
-  "_說明": "3D 場景的參數。數字改這裡就好，不用動程式。",
+  "_說明": "3D 場景的參數。數字改這裡就好，不用動程式。長度單位大約是公尺（小公主身高約 2）。",
   "camera": {
+    "_說明": "overview 是按「地圖」時看全部島的位置；focus 是地圖模式點一座島時飛過去的距離（會乘島的 size）；follow 是跟著小公主的鏡頭：distance 往後多遠、height 多高、lookHeight 看小公主身上多高、yaw 預設從哪個方位看（0 = 從南邊看）、maxTurnDegrees 拖曳最多轉幾度、smooth 跟上的快慢。",
     "fov": 45,
-    "overviewDistance": 46,
-    "overviewHeight": 30,
-    "focusDistance": 15,
-    "focusHeight": 9,
+    "far": 900,
+    "overviewCenter": [0, 10],
+    "overviewDistance": 135,
+    "overviewHeight": 125,
+    "focusDistance": 58,
+    "focusHeight": 40,
     "flySeconds": 1.1,
     "dragSpeed": 0.005,
-    "autoSpinPerSecond": 0.03
+    "autoSpinPerSecond": 0.03,
+    "follow": { "distance": 11, "height": 8, "lookHeight": 1.2, "yaw": 0, "maxTurnDegrees": 35, "smooth": 5, "minZoom": 0.7, "maxZoom": 1.4 }
   },
   "island": {
-    "radius": 5.2,
-    "bobAmount": 0.12,
+    "_說明": "radius 是 size = 1 的島的半徑（subjects.json 的 size 再乘上去）。segments 是島邊緣的邊數（越多越圓）。flowers、trees 是每座島的小花和樹的數量，樹種在島邊一圈，中間空地留給之後放東西。bobAmount 是島上下浮動的高度，小公主站在島上，所以設 0。",
+    "radius": 23.4,
+    "segments": 48,
+    "flowers": 40,
+    "trees": 10,
+    "bobAmount": 0,
     "bobSpeed": 0.8
   },
-  "sea": {
-    "size": 220,
-    "waveHeight": 0.18,
-    "waveSpeed": 0.9
+  "village": {
+    "_說明": "島中間的小村子：三棟建築的位置（離島中心幾公尺，x 往右、z 往南／往鏡頭）、ry 轉幾度（弧度）。buildingScale 是建築的大小倍率。spawn 是小公主出現的地方。門都朝南（+z），小公主走到門口 doorDistance 公尺內就會出現「進入」按鈕。",
+    "buildingScale": 1.15,
+    "tower": { "x": -5.5, "z": -2.5, "ry": 0.3 },
+    "house": { "x": 5.5, "z": -1.5, "ry": -0.35 },
+    "tent": { "x": 0, "z": 4.5, "ry": 0 },
+    "construction": { "x": 0, "z": 0 },
+    "spawn": { "x": 0, "z": 10 },
+    "doorDistance": 1.6
   },
-  "quality": {
-    "maxPixelRatio": 2,
-    "shadows": true
+  "avatar": {
+    "_說明": "3D 小公主。homeIsland 是一開始站的島（subjects.json 的 code）；speed 每秒走幾公尺；body 是她占的圓半徑（擋路用）；skin／hair／crown 是膚色、髮色、皇冠色，裙子用選的公主代表色。",
+    "homeIsland": "math",
+    "speed": 4.2,
+    "body": 0.35,
+    "scale": 1,
+    "skin": "#ffe0c8",
+    "hair": "#7a4a32",
+    "crown": "#ffd34d",
+    "eye": "#4a3343",
+    "cheek": "#ff9fb5"
   },
+  "sea": { "size": 520, "segments": 90, "waveHeight": 0.18, "waveSpeed": 0.9 },
+  "fog": { "near": 160, "far": 460 },
+  "shadow": {
+    "_說明": "陰影只畫在鏡頭看的地方附近（半邊長 size 公尺），平板才不會變慢。",
+    "size": 40
+  },
+  "quality": { "maxPixelRatio": 2, "shadows": true },
   "music": {
     "_說明": "背景音樂是瀏覽器即時合成的八音盒，旋律是本專案自己寫的。notes 用「音名+八度」，- 是休止；beatsPerMinute 是速度；volume 0～1。",
     "beatsPerMinute": 96,

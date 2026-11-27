@@ -11,6 +11,10 @@ export function createHud(root, text) {
   const hint = $('#hint');
   const errorBox = $('#errors');
   const walletBox = $('#wallet');
+  const mapBtn = $('#map');
+  const enterBtn = $('#enter');
+  let enterAction = null;
+  if (enterBtn) enterBtn.addEventListener('click', () => enterAction?.());
   $('#site-title').textContent = text.siteTitle;
   hint.textContent = text.hint;
 
@@ -23,6 +27,7 @@ export function createHud(root, text) {
   const fill = (s, vals) => String(s).replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
 
   function open(nodes, onBack) {
+    if (enterBtn) enterBtn.hidden = true;
     panelBody.replaceChildren(...nodes);
     const back = el('button', 'btn ghost', text.back);
     back.type = 'button';
@@ -228,6 +233,32 @@ export function createHud(root, text) {
     },
 
     close() { panel.hidden = true; hint.hidden = false; },
+
+    /** 面板（島或建築的清單）是不是打開著 */
+    isOpen() { return !panel.hidden; },
+
+    /** 下方的提示文字 */
+    setHint(t) { hint.textContent = t; },
+
+    /** 畫面下方的大按鈕「進入測驗塔」：label 是 null 就藏起來 */
+    setEnter(label, onClick) {
+      if (!enterBtn) return;
+      enterAction = onClick || null;
+      if (!label) { enterBtn.hidden = true; return; }
+      if (enterBtn.dataset.label !== label) {
+        enterBtn.dataset.label = label;
+        enterBtn.replaceChildren(el('span', 'enter-label', label), el('kbd', 'enter-key', text.walk?.enterKey || ''));
+      }
+      enterBtn.hidden = !panel.hidden;
+    },
+
+    /** 右上角「地圖」：inMap = true 時按鈕寫「回到小公主」 */
+    setMap(inMap, onToggle) {
+      if (!mapBtn) return;
+      mapBtn.textContent = inMap ? (text.walk?.mapBack || '') : (text.walk?.map || '');
+      mapBtn.setAttribute('aria-pressed', String(inMap));
+      mapBtn.onclick = onToggle;
+    },
 
     showErrors(list) {
       if (!list.length) return;
