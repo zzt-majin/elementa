@@ -263,3 +263,36 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
 .cal-is-today { font-size: 11px; font-weight: 700; color: #8a7a6e; }
 .cal-page.other-day { box-shadow: 0 4px 0 #f5c842, 0 11px 22px rgba(60, 40, 30, .25); }
 @media (max-width: 640px) { .cal-nav { padding: 2px 3px 0; } .cal-nav-btn { width: 26px; height: 22px; line-height: 22px; font-size: 10px; } .cal-today { padding: 1px 6px; font-size: 10px; } .cal-is-today { font-size: 10px; } }
+
+/* 商店（時鐘左邊的按鈕）和寵物商店 world/shop.js */
+.shop-btn { display: inline-flex; align-items: center; gap: 6px; background: #f5a623; box-shadow: 0 3px 0 #c47d0e; }
+.shop-btn svg { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.shop-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.shop-tab { padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 14px; }
+.shop-tab.on { background: var(--main); color: #fff; }
+.shop-tab.off { background: #f2ecef; color: #8a7a80; }
+.shop-intro { margin: 0 0 8px; font-size: 15px; line-height: 1.6; }
+.shop-hungry { margin: 0 0 8px; padding: 8px 12px; border-radius: 12px; background: #e4f0fb; color: #2f5f8a; font-weight: 700; line-height: 1.55; }
+.pet-list { display: grid; gap: 10px; margin-top: 6px; }
+.pet-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); grid-template-areas: "pic info" "act act"; gap: 6px 12px; align-items: center; padding: 10px 12px; border-radius: 18px; background: #fff; border: 2px solid #f6e3c3; }
+.pet-row.dim { background: #fbf8f9; border-style: dashed; border-color: #e6d6dc; }
+.pet-row.owned { border-color: #9fdc8c; background: #f3fbef; }
+.pet-pic { grid-area: pic; width: 92px; height: 78px; border-radius: 14px; background: #fff2c9; display: grid; place-items: center; }
+.pet-pic.big { width: 150px; height: 120px; border-radius: 22px; align-self: center; }
+.pet-info { grid-area: info; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pet-name { font-size: 18px; }
+.pet-blurb, .pet-fee { font-size: 13px; color: #6b5d62; line-height: 1.45; }
+.pet-act { grid-area: act; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.pet-buy { min-height: 46px; }
+.pet-short { font-size: 13px; font-weight: 700; color: #c8232c; }
+.pet-owned { font-weight: 700; color: #2f6b3a; }
+.pet-when { margin: 0; text-align: center; font-size: 15px; color: #6b5d62; line-height: 1.6; }
+.pet-name-field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 15px; }
+.pet-name-field input { font: 400 18px "Noto Sans TC", sans-serif; padding: 10px 14px; border: 2px solid #f6e3c3; border-radius: 12px; background: #fff; color: var(--ink); }
+.pet-name-field input:focus { outline: 3px solid var(--main); outline-offset: 1px; }
+.pet-name-count { align-self: flex-end; font-weight: 400; font-size: 13px; color: #6b5d62; }
+.pet-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; font-size: 15px; }
+.pet-chip { padding: 6px 12px; border-radius: 12px; background: #fff2c9; }
+.pet-chip.fee { background: #ffe3ea; }
+.pet-need { margin: 0; text-align: center; font-size: 14px; font-weight: 700; color: #c8232c; }
+.pet-need[hidden] { display: none; }

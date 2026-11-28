@@ -442,6 +442,9 @@ export function createHud(root, text) {
       tag.hidden = false;
     },
 
+    /** 右邊的面板放別的模組做好的內容（例如商店 world/shop.js）；下面會加「返回」 */
+    showPanel(nodes, onBack) { open(nodes, onBack); },
+
     /** 說明視窗是不是打開著 */
     introOpen() { return !!root.querySelector('.intro-back'); },
 

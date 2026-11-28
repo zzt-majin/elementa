@@ -1,7 +1,8 @@
 // 考卷補分站：進度後台（貼到 Google 試算表的 Apps Script 裡）
 // 五個工作表：「帳號」放小孩名字和密碼，「設定」是爸媽可以調整的規則，
 // 「進度」是每一關的最佳成績，「作答紀錄」是每一次作答（測驗和搶答賽），
-// 「建設」是蓋了哪些橋、花了多少歐巴幣（第一次有人蓋橋時會自動建立）。
+// 「建設」是蓋了哪些橋和公路、買了哪些寵物、花了多少歐巴幣（第一次有人蓋橋時會自動建立）。
+// 寵物的「名稱」欄是小孩取的名字；每天的飼料和清潔費由網站從買的那一天算，不另外記。
 
 const ACCOUNTS = '帳號';
 const SETTINGS = '設定';
@@ -10,7 +11,7 @@ const LOG = '作答紀錄';
 const BUILDS = '建設';
 const BUILD_HEADERS = ['時間', '小孩', '類型', '代號', '名稱', '歐巴幣', '寶石', '編號'];
 // 建設的「類型」對應網站的 kind
-const BUILD_KINDS = { '橋': 'bridge', '公路': 'road' };
+const BUILD_KINDS = { '橋': 'bridge', '公路': 'road', '寵物': 'pet' };
 const LOG_HEADERS = ['時間', '小孩', '關卡代號', '關卡名稱', '答對', '題數', '用時（秒）', '時間到', '類型', '編號'];
 // 作答紀錄的「類型」對應網站帳本的 kind（歐巴幣、寶石照這個算）
 const KINDS = { '整關': 'level', '錯題重練': 'retry', '搶答賽': 'game' };
@@ -157,7 +158,7 @@ function save_(name, d) {
   return { ok: true, progress: progress_(name), history: history_(name), builds: builds_(name), family: familyBuilds_(name) };
 }
 
-// 蓋橋、蓋公路：記到「建設」工作表。同一個編號、或同一個小孩已經蓋過同一個代號，就不再記
+// 蓋橋、蓋公路、買寵物：記到「建設」工作表。同一個編號、或同一個小孩已經蓋過同一個代號，就不再記
 // （兩台裝置都按了蓋同一座橋，只算一次）。餘額由網站從作答紀錄算，這裡只記花了多少。
 function build_(name, d) {
   const kind = String(d.kind || '');
@@ -215,7 +216,9 @@ function buildRows_(want) {
     if (!kind || !isFinite(at)) continue;
     let gems = {};
     try { gems = r[6] ? JSON.parse(String(r[6])) : {}; } catch (err) { gems = {}; }
-    out.push({ id: String(r[7] || '') || 'row-' + at + '-' + r[3], at: at, kind: kind, key: String(r[3]), coins: Number(r[5]) || 0, gems: gems });
+    const item = { id: String(r[7] || '') || 'row-' + at + '-' + r[3], at: at, kind: kind, key: String(r[3]), coins: Number(r[5]) || 0, gems: gems };
+    if (kind === 'pet') item.name = String(r[4] || '').slice(0, 40); // 寵物的名字
+    out.push(item);
   }
   return all;
 }

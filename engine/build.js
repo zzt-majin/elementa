@@ -1,13 +1,15 @@
 // engine/build.js
-// 建設帳本：蓋了哪些橋（之後的公路也放這裡）、各花了多少。純邏輯，不碰畫面、不含小孩名字。
+// 建設帳本：蓋了哪些橋、公路，買了哪些寵物，各花了多少。純邏輯，不碰畫面、不含小孩名字。
 // 歐巴幣餘額 = 作答紀錄賺的（engine/economy.js）− 這裡記的花費。
 //
 // 一筆建設（build）：{ id, at: 毫秒, kind: 'bridge', key: 'math-chinese', coins: 120, gems: { math: 0 } }
 //   key 是「蓋在哪裡」：橋是「從哪座島-到哪座島」（subjects.json 的島代號）。
 //   同一個 key 只算第一筆（兩台裝置沒連網時都按了蓋同一座橋，只扣一次錢）。
 //   id 和送到試算表「建設」工作表的編號一樣，本機和雲端靠它合併。
+// 寵物（商店）也記在這裡：{ kind: 'pet', key: 'pet-tudog', coins: 100, name: '小黃' }，同一種只能買一隻；
+//   每天的飼料和清潔費不記在這裡，由 engine/pets.js 從買的那一天算。
 
-export const KINDS = ['bridge', 'road'];
+export const KINDS = ['bridge', 'road', 'pet'];
 /** 連到姐妹群島的公路只有一條，兩人共有：代號固定是 road */
 export const ROAD_KEY = 'road';
 
@@ -24,7 +26,15 @@ export function cleanBuild(b) {
     const n = Math.floor(Number(v));
     if (/^[a-z0-9-]{1,30}$/.test(k) && n > 0 && n <= 100000) gems[k] = n;
   }
-  return { id: b.id, at, kind: b.kind, key: b.key, coins, gems };
+  const out = { id: b.id, at, kind: b.kind, key: b.key, coins, gems };
+  if (b.kind === 'pet') out.name = cleanName(b.name);
+  return out;
+}
+
+/** 寵物的名字：去掉控制字元、前後空白，最多 max 個字（一個中文字、一個表情符號都算一個字） */
+export function cleanName(v, max = 16) {
+  const s = String(v ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim();
+  return Array.from(s).slice(0, max).join('').trim();
 }
 
 /** 同一個 key 只留最早的一筆（依時間、再依編號），回傳照時間排好的清單 */

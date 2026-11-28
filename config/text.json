@@ -267,7 +267,7 @@
     "clockLabel": "台灣時間 {t}"
   },
   "calendar": {
-    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記；road 開頭的是蓋好公路時的，{other} 是公路通到誰的群島。",
+    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記；road 開頭的是蓋好公路時的，{other} 是公路通到誰的群島。 pet 開頭的是買寵物時的，{breed} 是種類（臺灣土狗）、{name} 是取的名字。",
     "yearLine": "{y}・{gz}年・生肖屬{animal}",
     "label": "今天的日曆：{date}",
     "birthdays": "今天生日",
@@ -290,7 +290,10 @@
     "prevDay": "前一天",
     "nextDay": "後一天",
     "backToday": "回到今天",
-    "isToday": "今天"
+    "isToday": "今天",
+    "petTitle": "恭喜有了新朋友！",
+    "petBody": "{breed}「{name}」來到你的島上了，牠會陪小公主到處玩！",
+    "petDiary": "{m}/{d} 買了{breed}{name}！"
   },
   "road": {
     "_說明": "公路（世界設定第 5 步）：連到姐妹的群島，兩人共有。{other} 是對方的稱呼、{who} 是蓋公路的人、{coin} 是歐巴幣的名字、{price} 是價錢（例如「150 歐巴幣＋60 鑽石」）、{have} 是現在有多少、{short} 是還差多少。visit 開頭的是到對方的島上時的標示和提示。",
@@ -317,5 +320,34 @@
     "visitCancel": "先不要",
     "visitResult": "拜訪中：這次不記成績，也沒有{coin}和寶石。",
     "needRoad": "要先蓋好通到{other}群島的公路，才能去{other}的島上。"
+  },
+  "shop": {
+    "_說明": "商店（時鐘左邊的按鈕）。{breed} 寵物種類、{name} 取的名字、{price} 價錢、{fee} 每天的費用、{coin} 歐巴幣的名字、{have} 現在有多少、{after} 買完剩多少、{n} 數字、{max} 名字最多幾個字。",
+    "button": "商店",
+    "title": "商店",
+    "tabPets": "寵物商店",
+    "tabCloset": "更衣室（之後開）",
+    "intro": "買一隻狗狗陪小公主！牠會在你的島上跑來跑去，也會跟著過橋。每天要付飼料和清潔費喔。",
+    "feeLine": "每天飼料和清潔費 {fee} {coin}",
+    "buy": "買（{price} {coin}）",
+    "short": "還差 {n} {coin}",
+    "owned": "已經有了：{name}",
+    "locked": "要先登入才能買",
+    "total": "你的寵物每天共要 {n} {coin}（今天之前的已經扣了）",
+    "hungry": "歐巴幣變成負的了，狗狗肚子好餓，不想動……快去寫測驗賺{coin}！",
+    "confirmTitle": "你要確定要買{breed}嗎？",
+    "confirmBody": "購買後每天會自動扣{fee}{coin}作為飼料與清潔費用喔",
+    "confirmWhen": "今天不扣，從明天開始每天扣。{coin}不夠時會變成負的，狗狗會肚子餓、不想動喔。",
+    "nameLabel": "幫牠取名字（最多 {max} 個字）",
+    "namePlaceholder": "例如：小黃",
+    "nameCount": "{n}／{max}",
+    "nameNeeded": "要先幫牠取名字喔",
+    "chipPrice": "價錢 {price} {coin}",
+    "chipAfter": "你現在有 {have}，買完剩 {after}",
+    "chipFee": "每天 −{fee}（從明天開始）",
+    "ok": "確定要買",
+    "cancel": "先不要",
+    "done": "{name}來到你的島上了！",
+    "hungryBubble": "肚子好餓……"
   }
 }

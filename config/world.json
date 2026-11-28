@@ -98,6 +98,15 @@
     "eye": "#4a3343",
     "cheek": "#ff9fb5"
   },
+  "pets": {
+    "_說明": "商店買的狗狗在島上怎麼走（價錢在 config/pets.json）。speed 每秒走幾公尺；body 占的圓半徑；scale 整體大小；rest 是走到一個地方後停幾秒（最少、最多）；range 是一次最遠跑多遠（公尺）；只走自己走得到的島和蓋好的橋，不走公路。footprints 是沙灘上的腳印，比小公主的小、比較密。",
+    "speed": 2.6,
+    "body": 0.28,
+    "scale": 1,
+    "rest": [1.5, 4.5],
+    "range": 14,
+    "footprints": { "stride": 0.2, "side": 0.07, "stay": 3, "fade": 1.5, "max": 60, "size": [0.05, 0.06], "color": "#9c7a48", "opacity": 0.8 }
+  },
   "sea": { "size": 520, "segments": 90, "waveHeight": 0.18, "waveSpeed": 0.9 },
   "fog": { "near": 160, "far": 460 },
   "shadow": {

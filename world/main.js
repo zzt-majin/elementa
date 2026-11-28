@@ -19,6 +19,10 @@ import { createMusicBox } from './music.js';
 import { clockText, msToNextMinute } from './clock.js';
 import { createCalendar } from './calendar.js';
 import { milestones } from '../engine/diary.js';
+import { petRules, ownedPets, feeSpends, shopState, petRecord, dailyFee, isHungry } from '../engine/pets.js';
+import { makeDog } from '../avatar/pet.js';
+import { createPetBrain } from '../avatar/pet-walk.js';
+import { createShop } from './shop.js';
 import { createQuizUI } from './quiz-ui.js';
 import { createCardsUI } from './cards-ui.js';
 import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
@@ -58,7 +62,7 @@ async function getJSON(url) {
  *     在她的島上寫測驗、看學習卡、玩搶答賽都不記成績、不給歐巴幣和寶石，也不呼叫 onResult。
  */
 export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
-  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig, musicLoaded, calendarConfig] = await Promise.all([
+  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig, musicLoaded, calendarConfig, petsConfig] = await Promise.all([
     ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
     getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
     getJSON(configPath + 'cards.json').catch(() => ({})), // 沒有 cards.json 就用引擎預設
@@ -68,6 +72,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     getJSON(configPath + 'family.json').catch(() => ({})), // 家裡有哪些小孩（還沒有關卡的也能登入）
     getJSON(configPath + 'music.json').catch(() => ({})), // 背景音樂的歌單和時鐘的時區
     getJSON(configPath + 'calendar.json').catch(() => ({})), // 左上角的日曆：國定假日、每天的名人和紀念日放哪
+    getJSON(configPath + 'pets.json').catch(() => ({})), // 商店的寵物：價錢、每天的費用
   ]);
   const presets = (Array.isArray(mixConfig?.presets) ? mixConfig.presets : [])
     .map((p) => ({ count: Math.round(Number(p.count)), minutes: Number(p.minutes) }))
@@ -82,7 +87,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     text: text.calendar || {},
     config: calendarConfig || {},
     fetchText: async (url) => { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? r.text() : null; },
-    onDayChange: () => refreshDiary(),
+    onDayChange: () => { refreshDiary(); showWallet(); }, // 過了半夜：日記換一天、寵物的費用多扣一天
   }) : { isOpen: () => false, close() {}, setDiary() {}, celebrate(m, done) { done?.(); }, today: () => null };
   const loading = hudRoot.querySelector('#loading');
   loading.textContent = text.loading;
@@ -177,7 +182,14 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     if (mix) { const s = levels.find((x) => x.meta.id.startsWith(mix[1] + '-')); if (s) return islandOfSubject(s.meta.subject); }
     return '';
   }
-  const walletOf = (k) => computeWallet({ history: ledger.history(k), spends: builds.effective(k), rules: econ, islandOf });
+  // 寵物（商店）：買的價錢記在建設本；每天的飼料和清潔費照買的那一天到今天過了幾天算（engine/pets.js）
+  const petConf = petRules(petsConfig);
+  const calTz = typeof calendarConfig?.timeZone === 'string' && calendarConfig.timeZone ? calendarConfig.timeZone : 'Asia/Taipei';
+  const walletOf = (k) => {
+    const list = builds.effective(k);
+    return computeWallet({ history: ledger.history(k), spends: [...list, ...feeSpends({ builds: list, rules: petConf, now: Date.now(), timeZone: calTz })], rules: econ, islandOf });
+  };
+  let hungry = false; // 歐巴幣是負的：寵物肚子餓，不走動、哭哭
   function showWallet() {
     if (!kid) { hud.setWallet(null); return; }
     const w = walletOf(kid);
@@ -185,6 +197,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const shown = subjects.islands.filter((i) => econ.gems[i.code] && (levelsFor(levels, { kid, subject: i.subject }).count || w.gems[i.code]))
       .map((i) => ({ code: i.code, name: econ.gems[i.code].name, color: econ.gems[i.code].color, n: w.gems[i.code] || 0 }));
     hud.setWallet({ coins: w.coins, gems: shown });
+    const h = isHungry(w.coins);
+    if (h !== hungry) { hungry = h; for (const p of petViews.values()) setPetTag(p); }
   }
   /** 記進帳本，回傳交卷畫面要顯示的「獲得 …」 */
   function earn(k, summary, kind) {
@@ -274,8 +288,125 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     princessModel.group.position.set(walker.x, area ? surfaceAt(walker, area, area.top).y : 0.9, walker.z);
     footprints.clear();
     princessModel.group.rotation.y = walker.heading;
+    for (const p of petViews.values()) { p.placed = false; p.prints.clear(); }
     door = null;
     hud.setEnter(null);
+  }
+
+  // ---------- 寵物（商店買的狗狗）：在自己的島上亂跑、會過自己的橋、不走公路 ----------
+  const pw = world.pets || {};
+  const petViews = new Map(); // 小孩|key → { pet, model, walker, brain, prints, tag, tagText, placed }
+  const petPrints = new Map(); // 種類 → 足跡（換小孩時重複用，不用一直加到場景裡）
+  const ST = () => text.shop || {};
+  function setPetTag(p) {
+    const want = hungry ? (ST().hungryBubble || '') : p.pet.name;
+    if (p.tagText === want) return;
+    p.tagText = want;
+    if (p.tag) { p.model.group.remove(p.tag); p.tagMat?.map?.dispose?.(); p.tagMat?.dispose?.(); }
+    if (!want) { p.tag = null; return; }
+    const tex = textTexture(want, { fg: hungry ? '#2f5f8a' : (colors.label || '#4a3343'), bg: 'rgba(255,255,255,0.92)', w: 360, h: 96, size: 50, round: true, border: hungry ? '#5aa9e6' : colors.main });
+    const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false });
+    const tag = new THREE.Sprite(mat);
+    p.tagMat = mat;
+    tag.scale.set(1.5, 0.4, 1);
+    tag.position.set(0, 1.05 * (p.look.size || 1) * (Number(pw.scale) || 1), 0);
+    tag.raycast = () => {};
+    tag.renderOrder = 8;
+    p.model.group.add(tag);
+    p.tag = tag;
+  }
+  /** 照這個小孩買過的寵物，加上新的、拿掉別人的（換小孩、雲端合併、剛買都會叫） */
+  function syncPets() {
+    const owned = kid ? ownedPets(builds.effective(kid), petConf) : [];
+    const want = new Map(owned.map((p) => [kid + '|' + p.key + '|' + p.name, p]));
+    for (const [k, v] of petViews) {
+      if (want.has(k)) continue;
+      view.scene.remove(v.model.group);
+      v.prints.clear();
+      petViews.delete(k);
+    }
+    for (const [k, pet] of want) {
+      if (petViews.has(k)) continue;
+      const look = pet.look || petConf.breeds[0] || { look: 'tudog', size: 1, colors: { body: '#e0a85a', dark: '#8a5a2b', light: '#f6dfb4', eye: '#3b2a30' } };
+      const model = makeDog(look, Number(pw.scale) || 1);
+      view.scene.add(model.group);
+      const pwalker = createWalker({ x: 0, z: 0, heading: 0 }, { speed: Number(pw.speed) || 2.6, body: Number(pw.body) || 0.28 });
+      const brain = createPetBrain(pwalker, { rest: pw.rest, range: Number(pw.range) || 14 });
+      if (!petPrints.has(pet.code)) petPrints.set(pet.code, createFootprints(view.scene, pw.footprints));
+      const v = { pet, look, model, walker: pwalker, brain, prints: petPrints.get(pet.code), tag: null, tagText: null, placed: false };
+      setPetTag(v);
+      petViews.set(k, v);
+    }
+  }
+  /** 每一格：狗狗亂跑（肚子餓就坐著）、留腳印 */
+  function stepPets(dt, t) {
+    let i = 0;
+    for (const p of petViews.values()) {
+      i += 1;
+      const pa = area?.pets;
+      if (!pa) { p.model.group.visible = false; continue; }
+      p.model.group.visible = true;
+      if (!p.placed) {
+        // 出現在小公主出生點旁邊，每隻錯開一點
+        const a = i * 2.1;
+        p.walker.place({ x: area.spawn.x + Math.cos(a) * 2.2, z: area.spawn.z + Math.sin(a) * 2.2, heading: a });
+        p.placed = true;
+      }
+      if (!growing) p.brain.update(dt, pa, hungry);
+      const ground = surfaceAt(p.walker, pa, area.top);
+      const y = p.model.group.position.y;
+      p.model.group.position.set(p.walker.x, Math.abs(y - ground.y) > 0.6 ? ground.y : y + (ground.y - y) * Math.min(1, dt * 12), p.walker.z);
+      p.model.group.rotation.y = p.walker.heading;
+      p.prints.step(p.walker, p.walker.heading, ground.beach && p.walker.moving > 0.2, ground.y);
+      p.model.animate(dt, p.walker.moving, hungry);
+    }
+    for (const f of petPrints.values()) f.update(t);
+  }
+
+  // ---------- 商店（時鐘左邊）：寵物商店 ----------
+  const shop = createShop({ button: hudRoot.querySelector('#shop'), root: hudRoot, hud, text: ST(), onOpen: () => openShop() });
+  function shopNow() {
+    const w = kid ? walletOf(kid) : { coins: 0 };
+    const owned = kid ? ownedPets(builds.effective(kid), petConf) : [];
+    return {
+      kid,
+      coins: w.coins,
+      coin: econ.currencyName || '歐巴幣',
+      breeds: petConf.breeds,
+      owned,
+      nameMax: petConf.nameMax,
+      hungry,
+      totalFee: owned.reduce((n, p) => n + p.fee, 0),
+      fee: (b) => dailyFee(b.price, petConf),
+      shopState: (b) => shopState(b, { kid, coins: w.coins, owned }),
+      onBuy: (b, name) => buyPet(b.code, name),
+    };
+  }
+  function openShop() {
+    if (paused || growing) return;
+    focused = null;
+    lastBuilding = null;
+    walker.stop();
+    door = null;
+    hud.setEnter(null);
+    shop.show(shopNow(), backToAll);
+  }
+  /** 真的買下去：記到建設本（會存到試算表），狗狗出現在小公主旁邊，跳「恭喜有了新朋友！」 */
+  function buyPet(code, name) {
+    const b = petConf.breeds.find((x) => x.code === code);
+    if (!kid || !b) return false;
+    if (shopState(b, { kid, coins: walletOf(kid).coins, owned: ownedPets(builds.effective(kid), petConf) }).state !== 'ready') { openShop(); return false; }
+    const rec = petRecord({ id: newEntryId(), at: Date.now(), breed: b, name, rules: petConf });
+    if (!rec || !builds.add(kid, rec)) { openShop(); return false; }
+    try { hooks.onBuild?.(kid, { ...rec }); } catch (err) { console.error(err); }
+    showWallet();
+    hud.close();
+    syncPets();
+    const v = petViews.get(kid + '|' + rec.key + '|' + rec.name);
+    if (v) { v.walker.place({ x: walker.x + 1.2, z: walker.z + 0.6, heading: walker.heading }); v.placed = true; }
+    hud.flash(fill(ST().done, { name: rec.name }), 5000);
+    setTimeout(checkCelebrate, 400);
+    return true;
   }
 
   // ---------- 橋（世界設定第 4 步）----------
@@ -317,7 +448,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   function celebrated() {
     try { const a = JSON.parse(store.get(celebratedKey()) || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); }
   }
-  const allMilestones = () => (kid ? milestones({ builds: builds.list(kid), plan, names: islandNames, text: CT(), timeZone: calendarConfig?.timeZone || 'Asia/Taipei', other: otherKid() || '' }) : []);
+  const breedNames = Object.fromEntries(petConf.breeds.map((b) => [b.code, b.name]));
+  const allMilestones = () => (kid ? milestones({ builds: builds.list(kid), plan, names: islandNames, text: CT(), timeZone: calTz, other: otherKid() || '', breeds: breedNames }) : []);
   function todayKey() {
     const t = calendar.today?.();
     return t ? t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0') : '';
@@ -396,6 +528,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     }
     for (const def of subjects.islands) if (!reach.has(def.code)) mistGroup.add(makeMist(def, world.island, bcfg));
     drawVisit();
+    syncPets();
     refreshDiary();
     setTimeout(checkCelebrate, 0); // 換小孩、雲端合併進來別台蓋的橋，也看看要不要祝賀
   }
@@ -418,6 +551,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       }
     }
     const obstacles = parts.flatMap((p) => p.obstacles);
+    // 寵物能走的地方：自己走得到的島＋蓋好的橋（不放公路和姐妹的群島，走到公路口就過不去）
+    const pets = { grounds: grounds.slice(), obstacles: obstacles.slice() };
     if (roadLine && roadInfo) {
       // 公路蓋好了：公路（走起來比較快）＋她的群島上走得到的島和她蓋好的橋
       if (growing?.key !== ROAD_KEY) grounds.push({ ...bridgeStrip(roadLine), road: true, fast: roadFast });
@@ -435,7 +570,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       const u = roadLine.u;
       doors.push({ kind: 'road', key: ROAD_KEY, id: 'road', x: roadLine.a.x - u.x * 0.8, z: roadLine.a.z - u.z * 0.8, face: Math.atan2(u.x, u.z), reach: Math.max(doorDistance, rcfg.width) });
     }
-    return { grounds, obstacles, doors, spawn: home.spawn, top: home.top };
+    return { grounds, obstacles, doors, spawn: home.spawn, top: home.top, pets };
   }
 
   /** 公路和姐妹的群島：她蓋好的橋、淡霧、公路（還沒蓋就是虛線和浮標） */
@@ -1123,6 +1258,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     for (const g of visitIslands.children) g.traverse((o) => { if (o.name === 'flag') o.rotation.y = Math.sin(t * 3 + (g.userData.phase || 0)) * 0.35; });
     stepGrowing(dt);
     stepPrincess(dt);
+    stepPets(dt, t);
     waves.update(t);
     footprints.update(t);
     rig.update(dt);
@@ -1166,9 +1302,11 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   }
 
   return {
-    ...api, openIsland, openBuilding, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI, openBridge, openRoad, calendar,
+    ...api, openIsland, openBuilding, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI, openBridge, openRoad, calendar, openShop, buyPet,
     /** 檢查用（自動測試讀小公主在哪、走得到哪些島）；網站本身不用 */
-    debug: { footprints: () => footprints.count(), walker, area: () => area, reach: () => [...reach], mist: () => mistGroup.children.map((m) => m.userData.mist), bridges: () => [...bridgeViews].map(([k, v]) => k + ':' + v.kind), growing: () => !!growing, road: () => roadView?.kind || null, roadOwner: () => roadInfo?.kid || null, visitReach: () => [...visitReach], onVisit: () => onVisit, roadLine: () => roadLine, visitRoot },
+    debug: { footprints: () => footprints.count(), walker, area: () => area, reach: () => [...reach], mist: () => mistGroup.children.map((m) => m.userData.mist), bridges: () => [...bridgeViews].map(([k, v]) => k + ':' + v.kind), growing: () => !!growing, road: () => roadView?.kind || null, roadOwner: () => roadInfo?.kid || null, visitReach: () => [...visitReach], onVisit: () => onVisit, roadLine: () => roadLine, visitRoot,
+      pets: () => [...petViews.values()].map((p) => ({ key: p.pet.key, name: p.pet.name, x: p.walker.x, z: p.walker.z, moving: p.walker.moving, tag: p.tagText, target: !!p.walker.target })),
+      petArea: () => area?.pets || null, hungry: () => hungry, petPrints: () => [...petPrints.values()].reduce((n, f) => n + f.count(), 0) },
   };
 }
 
