@@ -3,6 +3,7 @@
 // 「進度」是每一關的最佳成績，「作答紀錄」是每一次作答（測驗和搶答賽），
 // 「建設」是蓋了哪些橋和公路、買了哪些寵物、花了多少歐巴幣（第一次有人蓋橋時會自動建立）。
 // 寵物的「名稱」欄是小孩取的名字；每天的飼料和清潔費由網站從買的那一天算，不另外記。
+// 「登入」是那一天有來玩，一天一筆；每日登入獎勵由網站從這些紀錄算，不另外記。
 
 const ACCOUNTS = '帳號';
 const SETTINGS = '設定';
@@ -11,7 +12,8 @@ const LOG = '作答紀錄';
 const BUILDS = '建設';
 const BUILD_HEADERS = ['時間', '小孩', '類型', '代號', '名稱', '歐巴幣', '寶石', '編號'];
 // 建設的「類型」對應網站的 kind
-const BUILD_KINDS = { '橋': 'bridge', '公路': 'road', '寵物': 'pet' };
+// 「登入」是那一天有來玩（網站照這個算每日登入獎勵），一天一筆，歐巴幣欄是 0
+const BUILD_KINDS = { '橋': 'bridge', '公路': 'road', '寵物': 'pet', '登入': 'login' };
 const LOG_HEADERS = ['時間', '小孩', '關卡代號', '關卡名稱', '答對', '題數', '用時（秒）', '時間到', '類型', '編號'];
 // 作答紀錄的「類型」對應網站帳本的 kind（歐巴幣、寶石照這個算）
 const KINDS = { '整關': 'level', '錯題重練': 'retry', '搶答賽': 'game' };
@@ -198,10 +200,10 @@ function builds_(name) {
 // 家裡其他小孩蓋過的東西（公路是兩人共有，對方的橋要畫在對方的群島上）。
 // 只回傳建設本身（蓋了哪座橋、花多少），不回傳成績和密碼。回傳 { 妹妹: [...] }
 function familyBuilds_(name) {
-  return buildRows_(function (who) { return who !== name; });
+  return buildRows_(function (who) { return who !== name; }, true);
 }
 
-function buildRows_(want) {
+function buildRows_(want, noLogin) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(BUILDS);
   if (!sh || sh.getLastRow() < 2) return {};
   const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
@@ -214,6 +216,7 @@ function buildRows_(want) {
     const kind = BUILD_KINDS[String(r[2])];
     const at = r[0] instanceof Date ? r[0].getTime() : new Date(r[0]).getTime();
     if (!kind || !isFinite(at)) continue;
+    if (noLogin && kind === 'login') continue; // 對方哪幾天來玩不用給
     let gems = {};
     try { gems = r[6] ? JSON.parse(String(r[6])) : {}; } catch (err) { gems = {}; }
     const item = { id: String(r[7] || '') || 'row-' + at + '-' + r[3], at: at, kind: kind, key: String(r[3]), coins: Number(r[5]) || 0, gems: gems };

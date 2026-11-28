@@ -1,0 +1,42 @@
+/* world/phone.css — 手機版（world/phone.js 在 #hud 加上 .phone）：日曆、姐妹切換、時鐘收起來；地圖、商店、音樂變成右邊直排的小圓鈕。
+   電腦和平板沒有 .phone，這個檔案的規則都不會套用（.ph-only 的按鈕也藏起來）。 */
+.ph-only { display: none; }
+
+/* 左上角：收起來的日曆只寫幾月幾日；打開後完整日曆出現在它下面 */
+#hud.phone .ph-cal { display: block; position: absolute; left: 10px; top: 10px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 12px; background: #fffdf6; color: #c8232c; font: 900 16px "Noto Sans TC", sans-serif; box-shadow: 0 3px 0 #e8dcc0, 0 6px 14px rgba(60, 40, 30, .2); cursor: pointer; border-top: 6px solid #c8232c; }
+#hud.phone .ph-cal[aria-expanded="true"] { background: #c8232c; color: #fff; }
+#hud.phone #calendar { display: none; }
+#hud.phone.ph-cal-open #calendar { display: block; top: 64px; left: 10px; z-index: 5; }
+
+/* 上方列：從收起來的日曆右邊開始排，字和間距小一點 */
+#hud.phone > .top { padding: 10px 10px 8px 118px; gap: 6px; }
+#hud.phone .chips { padding: 3px; }
+#hud.phone .chip { min-height: 40px; padding: 0 12px; font-size: 15px; }
+#hud.phone .wallet { gap: 8px; padding: 4px 10px; }
+#hud.phone .w-item { font-size: 13px; }
+#hud.phone .w-icon { width: 14px; height: 14px; }
+
+/* 姐妹切換：收起來時只看得到目前的人（▾），登入狀態也收起來；有問題（⚠️）或要登入時照樣顯示 */
+#hud.phone:not(.ph-kids-open) #kids .chip[aria-pressed="false"] { display: none; }
+#hud.phone:not(.ph-kids-open) #kids .chip[aria-pressed="true"]::after { content: " ▾"; font-size: 12px; }
+#hud.phone .top:has(.account .who) #kids .chip[aria-pressed="true"]::before { content: "☁ "; font-size: 13px; }
+#hud.phone:not(.ph-kids-open) .top .account:not(:has(.sync.warn)):not(:has(.btn)) { display: none; }
+#hud.phone .account { font-size: 13px; padding: 2px 4px 2px 10px; }
+
+/* 右邊直排的小圓鈕：地圖、商店、音樂（只有圖示，按鈕名稱仍給讀屏軟體） */
+#hud.phone .top > #map, #hud.phone .top > #shop, #hud.phone .top > .ph-music { position: absolute; right: 10px; width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+#hud.phone .top > #map { top: calc(100% + 2px); font-size: 0; }
+#hud.phone .top > #map::before { content: "🗺️"; font-size: 22px; }
+#hud.phone .top > #map[aria-pressed="true"]::before { content: "👸"; }
+#hud.phone .top > #shop { top: calc(100% + 58px); }
+#hud.phone .top > #shop span { display: none; }
+#hud.phone .top > .ph-music { top: calc(100% + 114px); font-size: 22px; background: #fff; box-shadow: 0 3px 0 var(--soft); }
+#hud.phone .top > .ph-music[aria-expanded="true"] { background: var(--soft); }
+
+/* 時鐘音樂：收在音樂鈕裡；打開時出現在小圓鈕的左邊 */
+#hud.phone .top > #clock { display: none; }
+#hud.phone.ph-clock-open .top > #clock { display: flex; position: absolute; right: 66px; top: calc(100% + 2px); z-index: 5; }
+
+/* 下方提示：字小一點，幾秒後淡出 */
+#hud.phone .hint { bottom: 10px; padding: 6px 12px; font-size: 12px; transition: opacity .6s; }
+#hud.phone .hint.ph-fade { opacity: 0; pointer-events: none; }

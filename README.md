@@ -32,6 +32,7 @@ node tests/quiz.test.mjs
 node tests/cloud.test.mjs
 node tests/cards.test.mjs
 node tests/generate.test.mjs
+node tests/phone.test.mjs
 ```
 
-測驗引擎的說明見 `docs/測驗引擎.md`；登入與雲端進度見 `docs/雲端進度.md`（後台網址填在 `config/backend.json`）；學習屋見 `docs/學習屋.md`（參數在 `config/cards.json`）；出題模組和綜合練習見 `docs/出題模組.md`（數字範圍在 `config/generators/`，綜合練習在 `config/mix.json`）。歐巴幣和寶石見 `docs/資源帳本.md`（數字在 `config/economy.json`，家裡的小孩在 `config/family.json`）。
+測驗引擎的說明見 `docs/測驗引擎.md`；登入與雲端進度見 `docs/雲端進度.md`（後台網址填在 `config/backend.json`）；學習屋見 `docs/學習屋.md`（參數在 `config/cards.json`）；出題模組和綜合練習見 `docs/出題模組.md`（數字範圍在 `config/generators/`，綜合練習在 `config/mix.json`）。歐巴幣和寶石見 `docs/資源帳本.md`（數字在 `config/economy.json`，家裡的小孩在 `config/family.json`）。每日登入獎勵和累計登入成就見 `docs/每日登入.md`。

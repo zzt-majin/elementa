@@ -188,6 +188,10 @@
     "reward": "獲得 {items}！",
     "noReward": "這次沒有新的獎勵：同一關同一天只算最好的一次，搶答賽一天最多 50 枚歐巴幣。"
   },
+  "dailyLogin": {
+    "_說明": "每日登入獎勵（數字在 config/economy.json 的 login）。{n} 是這一輪第幾天、{coins} 這次拿幾枚、{next} 明天再來拿幾枚。累計登入 50、100…天的祝賀和日記在 calendar.login 開頭的。",
+    "flash": "每日登入第 {n} 天，+{coins} {coin}！明天再來 +{next}"
+  },
   "walk": {
     "_說明": "小公主走路模式的文字。hintTouch 是平板上的提示；hintMap 是按了「地圖」以後的提示；enter 的 {name} 換成建築名稱；enterKey 是電腦上按鈕旁邊的小字。",
     "hintTouch": "點地面，小公主就走過去；走到門口按「進入」",
@@ -267,7 +271,7 @@
     "clockLabel": "台灣時間 {t}"
   },
   "calendar": {
-    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記；road 開頭的是蓋好公路時的，{other} 是公路通到誰的群島。 pet 開頭的是買寵物時的，{breed} 是種類（臺灣土狗）、{name} 是取的名字。",
+    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記；road 開頭的是蓋好公路時的，{other} 是公路通到誰的群島。 pet 開頭的是買寵物時的，{breed} 是種類（臺灣土狗）、{name} 是取的名字。login 開頭的是累計登入 50、100…天，{n} 是天數、{coins} 是給的歐巴幣。",
     "yearLine": "{y}・{gz}年・生肖屬{animal}",
     "label": "今天的日曆：{date}",
     "birthdays": "今天生日",
@@ -278,6 +282,10 @@
     "close": "知道了",
     "diaryTitle": "{kid}的日記",
     "diaryEmpty": "今天還沒有日記",
+    "diaryEmptyOther": "這一天沒有日記",
+    "loginTitle": "恭喜累計登入 {n} 天！",
+    "loginBody": "你已經來群島玩了 {n} 天，送你 {coins} 歐巴幣！",
+    "loginDiary": "{m}/{d} 累計登入 {n} 天，拿到 {coins} 歐巴幣！",
     "milestone": "里程碑達成",
     "willWrite": "會寫進日記：",
     "write": "寫進日記",
@@ -349,5 +357,11 @@
     "cancel": "先不要",
     "done": "{name}來到你的島上了！",
     "hungryBubble": "肚子好餓……"
+  },
+  "phone": {
+    "_說明": "手機版（world/phone.js）：左上角收起來的日曆寫幾月幾日（{m} 月、{d} 日）；calendar 是給讀屏軟體的按鈕名稱（{date} 日期）；music 是右邊音樂小圓鈕的名稱。",
+    "date": "{m}月{d}日",
+    "calendar": "日曆 {date}，點一下打開或收起",
+    "music": "時鐘和音樂，點一下打開或收起"
   }
 }

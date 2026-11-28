@@ -120,7 +120,7 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
   let dialog = null;
   let lastFocus = null;
   let info = null;
-  let diary = { title: '', entries: [], fresh: '' }; // 今天的日記：{ title, entries: [{ id, line }], fresh 剛寫進去、要閃一下的 id }
+  let diary = { title: '', entries: [], fresh: '' }; // 日記：{ title, entries: [{ id, day: '2026-11-27', line }]（全部的日子）, fresh 剛寫進去、要閃一下的 id }
   let onDialogClose = null;
 
   const el = (tag, cls, content) => {
@@ -189,25 +189,27 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
     if (offset) page.classList.add('other-day');
     const foot = el('div', 'cal-foot');
     foot.hidden = true;
-    // 日記只放今天的，翻到別天就先藏起來
-    const d = renderDiary();
-    if (offset) d.hidden = true;
-    page.append(foot, d);
+    // 日記：翻到哪一天就放那一天的
+    page.append(foot, renderDiary());
     root.replaceChildren(page);
     root.setAttribute('aria-label', fill(T.label, { date: info.rocText + info.monthZh + info.day + '日' + info.weekdayZh }));
     const key = info.key;
     bookOf(key).then((b) => { if (shownKey === key) renderFoot(foot, b); });
   }
 
-  /** 日曆最下面的日記（橫線紙）：今天完成的里程碑 */
+  /** 現在顯示的那一天：'2026-11-27'（和日記的 day 一樣的寫法） */
+  const shownDay = () => (info ? info.year + '-' + String(info.month).padStart(2, '0') + '-' + String(info.day).padStart(2, '0') : '');
+  /** 日曆最下面的日記（橫線紙）：顯示的那一天完成的里程碑 */
   function renderDiary() {
     const box = el('div', 'cal-diary');
     if (!diary.title) { box.hidden = true; return box; }
     const t = el('div', 'cal-diary-title');
     t.append(smallIcon(BOOK), el('span', '', diary.title));
     box.append(t);
-    if (!diary.entries.length) box.append(el('p', 'cal-diary-empty', T.diaryEmpty));
-    for (const e of diary.entries) box.append(el('p', 'cal-diary-line' + (e.id === diary.fresh ? ' fresh' : ''), e.line));
+    const day = shownDay();
+    const list = diary.entries.filter((e) => !e.day || e.day === day);
+    if (!list.length) box.append(el('p', 'cal-diary-empty', offset ? (T.diaryEmptyOther || T.diaryEmpty) : T.diaryEmpty));
+    for (const e of list) box.append(el('p', 'cal-diary-line' + (e.id === diary.fresh ? ' fresh' : ''), e.line));
     return box;
   }
 
@@ -300,7 +302,7 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
   /** 祝賀畫面：m = { title, body, line }；按「寫進日記」（或 Esc）後呼叫 onDone */
   function celebrate(m, onDone) {
     const badge = el('div', 'cel-badge');
-    badge.append(bridgeArt());
+    badge.append(m.art === 'login' ? iconSvg('星星', 84) : bridgeArt());
     const note = el('div', 'cel-note');
     note.append(smallIcon(BOOK), el('span', '', T.willWrite), el('b', '', m.line));
     openDialog([badge, el('p', 'cel-kicker', T.milestone), el('h2', '', m.title), el('p', 'cel-body', m.body), note], m.title,
@@ -353,11 +355,11 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
   return {
     render,
     celebrate,
-    /** 日曆最下面的日記：title 例如「姐姐的日記」；entries 今天的 [{ id, line }]；fresh 剛寫進去的 id（閃一下） */
+    /** 日曆最下面的日記：title 例如「姐姐的日記」；entries 全部日子的 [{ id, day: '2026-11-27', line }]（只顯示翻到的那一天）；fresh 剛寫進去的 id（閃一下） */
     setDiary(title, entries, fresh = '') {
       diary = { title: title || '', entries: Array.isArray(entries) ? entries : [], fresh };
       const old = root.querySelector('.cal-diary');
-      if (old) { const d = renderDiary(); if (offset) d.hidden = true; old.replaceWith(d); }
+      if (old) old.replaceWith(renderDiary());
     },
     isOpen: () => !!dialog,
     close: () => closeDialog(),

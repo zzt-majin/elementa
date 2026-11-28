@@ -91,12 +91,12 @@ export function cleanEntry(e) {
 
 /**
  * 算出某個小孩現在有多少歐巴幣和寶石。
- * history：作答紀錄；spends：花費；rules：economyRules()；
+ * history：作答紀錄；spends：花費；bonuses：其他獎勵 [{ id, coins }]（每日登入）；rules：economyRules()；
  * islandOf(entry)：這筆是哪座島（紀錄本身有 island 就不用）
  * 回傳 { coins, gems: { math: 12 }, earned: { coins, gems }, spent: { coins, gems }, events: [{ id, coins, gems }] }
  * events 是每一筆作答各賺了多少，交卷畫面拿來顯示「獲得 +45 歐巴幣」。
  */
-export function computeWallet({ history = [], spends = [], rules, islandOf = () => '', dayOf = localDay }) {
+export function computeWallet({ history = [], spends = [], bonuses = [], rules, islandOf = () => '', dayOf = localDay }) {
   const r = rules || economyRules({});
   const list = history.map(cleanEntry).filter(Boolean).sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const levels = new Map(); // 關卡代號 → { gemDay, gemBest }（寶石）
@@ -165,6 +165,9 @@ export function computeWallet({ history = [], spends = [], rules, islandOf = () 
     if (gems) earned.gems[island] = (earned.gems[island] || 0) + gems;
     events.push({ id: e.id, coins, gems: gems ? { [island]: gems } : {} });
   }
+
+  // 不是作答賺的歐巴幣（每日登入獎勵、累計登入成就，engine/login.js 算好的 [{ id, coins }]）
+  for (const b of Array.isArray(bonuses) ? bonuses : []) earned.coins += Math.max(0, Math.floor(Number(b?.coins)) || 0);
 
   const spent = { coins: 0, gems: {} };
   for (const s of spends) {

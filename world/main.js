@@ -18,8 +18,10 @@ import { createHud } from './hud.js';
 import { createMusicBox } from './music.js';
 import { clockText, msToNextMinute } from './clock.js';
 import { createCalendar } from './calendar.js';
+import { createPhoneUi } from './phone.js';
 import { milestones } from '../engine/diary.js';
 import { petRules, ownedPets, feeSpends, shopState, petRecord, dailyFee, isHungry } from '../engine/pets.js';
+import { loginRules, loginSummary, loginRecord, loginKey, nextReward } from '../engine/login.js';
 import { makeDog } from '../avatar/pet.js';
 import { createPetBrain } from '../avatar/pet-walk.js';
 import { createShop } from './shop.js';
@@ -89,6 +91,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     fetchText: async (url) => { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? r.text() : null; },
     onDayChange: () => { refreshDiary(); showWallet(); }, // 過了半夜：日記換一天、寵物的費用多扣一天
   }) : { isOpen: () => false, close() {}, setDiary() {}, celebrate(m, done) { done?.(); }, today: () => null };
+  // 手機版：日曆、姐妹切換、時鐘收起來，點了才打開（world/phone.js；電腦和平板不受影響）
+  createPhoneUi(hudRoot, { text: text.phone || {}, today: () => calendar.today?.(), canvas });
   const loading = hudRoot.querySelector('#loading');
   loading.textContent = text.loading;
 
@@ -185,10 +189,38 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   // 寵物（商店）：買的價錢記在建設本；每天的飼料和清潔費照買的那一天到今天過了幾天算（engine/pets.js）
   const petConf = petRules(petsConfig);
   const calTz = typeof calendarConfig?.timeZone === 'string' && calendarConfig.timeZone ? calendarConfig.timeZone : 'Asia/Taipei';
+  // 每日登入獎勵、累計登入成就：那一天有來玩記在建設本（kind login），獎勵照 config/economy.json 的 login 算（engine/login.js）
+  const loginConf = loginRules(economyConfig?.login);
   const walletOf = (k) => {
     const list = builds.effective(k);
-    return computeWallet({ history: ledger.history(k), spends: [...list, ...feeSpends({ builds: list, rules: petConf, now: Date.now(), timeZone: calTz })], rules: econ, islandOf });
+    const bonuses = loginSummary({ builds: list, rules: loginConf, timeZone: calTz }).bonuses;
+    return computeWallet({ history: ledger.history(k), spends: [...list, ...feeSpends({ builds: list, rules: petConf, now: Date.now(), timeZone: calTz })], bonuses, rules: econ, islandOf });
   };
+  /**
+   * 今天有來玩（小公主走動、點島或建築）：每個小孩每天記一次，給每日登入獎勵，
+   * 下方提示「每日登入第 3 天，+10 歐巴幣！」；剛好累計 50、100…天就跳祝賀、寫日記。
+   */
+  let activeMark = '';
+  function markActive() {
+    if (!kid || !started) return;
+    const now = Date.now();
+    const key = loginKey(now, calTz);
+    if (activeMark === kid + '|' + key) return;
+    activeMark = kid + '|' + key;
+    if (builds.built(kid).has(key)) return;
+    const rec = loginRecord({ id: newEntryId(now), at: now, timeZone: calTz });
+    if (!builds.add(kid, rec)) return;
+    try { hooks.onBuild?.(kid, { ...rec }); } catch (err) { console.error(err); }
+    const sum = loginSummary({ builds: builds.effective(kid), rules: loginConf, timeZone: calTz });
+    const today = sum.days.find((d) => d.key === key);
+    showWallet();
+    if (today) {
+      const L = text.dailyLogin || {};
+      hud.flash(fill(L.flash, { n: today.n, coins: today.coins, coin: econ.currencyName || '歐巴幣', next: nextReward(today.n, loginConf) }), 7000);
+    }
+    refreshDiary();
+    setTimeout(checkCelebrate, 600);
+  }
   let hungry = false; // 歐巴幣是負的：寵物肚子餓，不走動、哭哭
   function showWallet() {
     if (!kid) { hud.setWallet(null); return; }
@@ -449,17 +481,17 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     try { const a = JSON.parse(store.get(celebratedKey()) || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); }
   }
   const breedNames = Object.fromEntries(petConf.breeds.map((b) => [b.code, b.name]));
-  const allMilestones = () => (kid ? milestones({ builds: builds.list(kid), plan, names: islandNames, text: CT(), timeZone: calTz, other: otherKid() || '', breeds: breedNames }) : []);
+  const allMilestones = () => (kid ? milestones({ builds: builds.list(kid), plan, names: islandNames, text: CT(), timeZone: calTz, other: otherKid() || '', breeds: breedNames, login: loginConf }) : []);
   function todayKey() {
     const t = calendar.today?.();
     return t ? t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0') : '';
   }
-  /** 日曆下面的日記：只放今天、已經祝賀過的（還在等祝賀的，按了「寫進日記」才出現） */
+  /** 日曆下面的日記：全部日子都給日曆，日曆只顯示翻到的那一天。今天還在等祝賀的，按了「寫進日記」才出現 */
   function refreshDiary(fresh = '') {
     if (!kid) { calendar.setDiary('', []); return; }
     const done = celebrated();
     const today = todayKey();
-    const list = allMilestones().filter((m) => m.day === today && done.has(m.id)).map((m) => ({ id: m.id, line: m.line }));
+    const list = allMilestones().filter((m) => m.day !== today || done.has(m.id)).map((m) => ({ id: m.id, day: m.day, line: m.line }));
     calendar.setDiary(fill(CT().diaryTitle, { kid }), list, fresh);
   }
   /** 有還沒祝賀的里程碑就跳出來（一次一個，按了再跳下一個） */
@@ -838,6 +870,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   function openIsland(code, visit = false) {
     const def = byCode(code);
     if (!def || (visit && !otherKid())) return;
+    markActive();
     focused = code;
     lastBuilding = null;
     const g = visit ? visitGroupOf(code) : groupOf(code);
@@ -848,6 +881,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   function openBuilding(code, kind, visit = false) {
     const def = byCode(code);
     if (!def || (visit && !otherKid())) return;
+    markActive();
     const who = whose(visit);
     const info = levelsFor(levels, { kid: who, subject: def.subject });
     if (!info.count) { openIsland(code, visit); return; }
@@ -1279,6 +1313,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       princessModel.group.position.set(walker.x, Math.abs(y - ground.y) > 0.6 ? ground.y : y + (ground.y - y) * Math.min(1, dt * 12), walker.z);
       footprints.step(walker, walker.heading, ground.beach && walker.moving > 0.2, ground.y);
       princessModel.group.rotation.y = walker.heading;
+      if (walker.moving > 0.2) markActive(); // 今天有來玩（一天只記一次）
     }
     princessModel.animate(dt, walker.moving);
     // 站在姐妹的群島上：上方中間「拜訪中・不記成績」
