@@ -285,7 +285,7 @@
     "clockLabel": "台灣時間 {t}"
   },
   "calendar": {
-    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記；road 開頭的是蓋好公路時的，{other} 是公路通到誰的群島。 pet 開頭的是買寵物時的，{breed} 是種類（臺灣土狗）、{name} 是取的名字。login 開頭的是累計登入 50、100…天，{n} 是天數、{coins} 是給的歐巴幣。",
+    "_說明": "左上角的日曆和日記。{y} 西元年、{gz} 干支、{animal} 生肖、{n} 數量、{m} 月、{d} 日、{date} 整個日期、{kid} 小孩、{nth} 第幾（國字）、{from}／{to} 島名。bridge 開頭的是蓋好橋時的祝賀畫面和日記；road 開頭的是蓋好公路時的，{other} 是公路通到誰的群島。 pet 開頭的是買寵物時的，{breed} 是種類（臺灣土狗）、{name} 是取的名字。login 開頭的是累計登入 50、100…天，{n} 是天數、{coins} 是給的歐巴幣。 item 開頭的是打開寶箱拿到裝備的，{item} 是裝備的名字（飛盤）。",
     "yearLine": "{y}・{gz}年・生肖屬{animal}",
     "label": "今天的日曆：{date}",
     "birthdays": "今天生日",
@@ -316,7 +316,10 @@
     "petTitle": "恭喜有了新朋友！",
     "petBody": "{breed}「{name}」來到你的島上了，牠會陪小公主到處玩！",
     "petDiary": "{m}/{d} 買了{breed}{name}！",
-    "giftDiary": "{m}/{d} 收到禮物{breed}{name}！"
+    "giftDiary": "{m}/{d} 收到禮物{breed}{name}！",
+    "itemTitle": "恭喜打開寶箱！",
+    "itemBody": "寶箱裡有{item}！已經放進右上角的「裝備」，按「使用」就能拿出來玩。",
+    "itemDiary": "{m}/{d} 打開寶箱，拿到{item}！"
   },
   "road": {
     "_說明": "公路（世界設定第 5 步）：連到姐妹的群島，兩人共有。{other} 是對方的稱呼、{who} 是蓋公路的人、{coin} 是歐巴幣的名字、{price} 是價錢（例如「150 歐巴幣＋60 鑽石」）、{have} 是現在有多少、{short} 是還差多少。visit 開頭的是到對方的島上時的標示和提示。",
@@ -394,5 +397,33 @@
     "again": "🔊 再聽一次",
     "slow": "🐢 慢慢聽",
     "none": "這台裝置沒有英文朗讀聲音，請換一台裝置，或請爸爸媽媽唸給你聽。"
+  },
+  "toys": {
+    "_說明": "寶箱、裝備和飛盤（數字在 config/toys.json）。{item} 裝備的名字、{name} 狗狗的名字。goddess 是海邊女神說的話（「，」的地方換行）。",
+    "button": "裝備",
+    "title": "我的裝備",
+    "intro": "寶箱裡拿到的東西放在這裡。點一下看說明，按「使用」拿在手上。之後的衣服、頭飾也會放在這裡。",
+    "empty": "還沒有裝備。蓋好第一座橋，到橋的另一頭找找看，那裡有一個寶箱喔！",
+    "emptySlot": "空的格子",
+    "held": "手上",
+    "heldLine": "小公主正拿在手上。",
+    "use": "使用",
+    "putAway": "收起來",
+    "useHint": "拿好{item}了！T 按住蓄力、放開丟出去",
+    "useHintTouch": "拿好{item}了！按住右下角的 T 蓄力、放開丟出去",
+    "putAwayDone": "{item}收起來了",
+    "door": "打開寶箱",
+    "gotTitle": "獲得{item}！",
+    "gotBody": "已經放進「裝備」（右上角）了。",
+    "take": "收下",
+    "later": "等一下",
+    "taken": "{item}放進裝備了！到右上角「裝備」按「使用」就能拿出來玩",
+    "throwKey": "T",
+    "throwLabel": "按住蓄力，放開丟飛盤",
+    "goddess": "海邊太危險了，我讓飛盤停下來了",
+    "pickHint": "飛盤在箭頭那裡，走過去撿起來吧！",
+    "picked": "撿到飛盤了！",
+    "caught": "{name}接到飛盤了！",
+    "returned": "{name}把飛盤咬回來了！再丟一次吧！"
   }
 }

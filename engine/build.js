@@ -10,7 +10,8 @@
 //   每天的飼料和清潔費不記在這裡，由 engine/pets.js 從買的那一天算。
 
 // login：那一天有來玩（engine/login.js 照這個算每日登入獎勵），coins 一定是 0
-export const KINDS = ['bridge', 'road', 'pet', 'login'];
+// item：寶箱裡拿到的裝備（engine/toys.js，key 'item-frisbee'），coins 一定是 0
+export const KINDS = ['bridge', 'road', 'pet', 'login', 'item'];
 /** 連到姐妹群島的公路只有一條，兩人共有：代號固定是 road */
 export const ROAD_KEY = 'road';
 

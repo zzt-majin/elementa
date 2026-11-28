@@ -1,0 +1,45 @@
+{
+  "_說明": "寶箱、裝備和飛盤（2026-11-28 家長決定，規則在 docs/寶箱和飛盤.md）。文字在 config/text.json 的 toys。改這裡就好，不用動程式。",
+  "slots": 4,
+  "chest": {
+    "_說明": "寶箱：蓋好 afterBridges 座橋以後，出現在第一座橋另一頭的島上（下橋往前 forward 公尺、往旁邊 side 公尺，不擋路），裡面是 item。reach 是小公主走到離寶箱多近會跳「打開寶箱」。openSeconds 是箱蓋打開、飛盤飛起來的動畫秒數。",
+    "item": "frisbee",
+    "afterBridges": 1,
+    "forward": 1.8,
+    "side": 2.3,
+    "reach": 2.2,
+    "openSeconds": 1.6
+  },
+  "items": [
+    {
+      "code": "frisbee",
+      "name": "飛盤",
+      "blurb": "紅藍同心圓、中間一顆白色星星的飛盤。拿在手上，按住 T 蓄力、放開就丟出去；附近的狗狗會跑去接，再咬回來還你！",
+      "colors": { "outer": "#d32f2f", "inner": "#1e6fd9", "star": "#ffffff", "rim": "#a82424" }
+    }
+  ],
+  "frisbee": {
+    "_說明": "丟飛盤：按住 T（平板按右下角的 T）蓄力，chargeSeconds 秒蓄滿；輕按丟 minDistance 公尺、按滿丟 maxDistance 公尺，往小公主面對的方向。flySpeed 每秒飛幾公尺、height 飛多高。小公主 dogRange 公尺內自己的狗（貓不接、肚子餓的不接）都跑去追，離飛盤 catchRadius 公尺內就接住；咬回來走到小公主 returnDistance 公尺內還給她。沒有狗接：小公主走到 pickupRadius 公尺內自己撿起來。giveUp 秒內狗狗都碰不到飛盤（被擋住）就換小公主自己撿。",
+    "chargeSeconds": 1.5,
+    "minDistance": 3,
+    "maxDistance": 20,
+    "flySpeed": 13,
+    "height": 1.4,
+    "dogRange": 15,
+    "catchRadius": 0.9,
+    "returnDistance": 1.1,
+    "pickupRadius": 1.0,
+    "giveUp": 8
+  },
+  "goddess": {
+    "_說明": "飛盤要掉進海裡時停在沙灘邊，海邊女神浮出來說話。bubbleSeconds 先冒泡、riseSeconds 浮出來、talkSeconds 對話框停多久、sinkSeconds 沉回去、rippleSeconds 水波散掉；out 是女神在飛盤外面幾公尺的海上；size 大小。女神是原創的：湖水綠長髮、白色貝殼小皇冠、白底水藍裙子。",
+    "bubbleSeconds": 0.4,
+    "riseSeconds": 0.6,
+    "talkSeconds": 1.5,
+    "sinkSeconds": 0.6,
+    "rippleSeconds": 0.6,
+    "out": 3.2,
+    "size": 1.15,
+    "colors": { "hair": "#3cc8b4", "hairDark": "#249e8e", "skin": "#ffe3cf", "shell": "#ffffff", "shellPink": "#ffd0dc", "top": "#ffffff", "skirt": "#7cc8f0", "eye": "#3b2a30", "cheek": "#ff8fa8" }
+  }
+}

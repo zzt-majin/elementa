@@ -299,3 +299,26 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
 .pet-gift-line { margin: 0 0 6px; padding: 8px 12px; border-radius: 12px; background: #f3fbef; color: #2f6b3a; font-weight: 700; }
 .pet-max { margin: 0 0 6px; }
 .pet-later-note { margin: 0; text-align: center; font-size: 13px; }
+
+/* 裝備（商店左邊的按鈕）、我的裝備、寶箱、丟飛盤的 T 按鈕 world/equip.js、world/frisbee.js */
+.equip-btn { display: inline-flex; align-items: center; gap: 6px; background: #4aa3df; box-shadow: 0 3px 0 #2a78ad; }
+.equip-btn svg { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.equip-btn svg .fillstar { fill: #fff; stroke: none; }
+.equip-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 6px 0 12px; }
+.equip-slot { position: relative; aspect-ratio: 1; display: grid; place-items: center; align-content: center; gap: 2px; padding: 6px; border-radius: 16px; border: 3px solid #e6dbe0; background: #fff; font: 700 14px "Noto Sans TC", sans-serif; color: var(--deep, #5a3d4f); cursor: pointer; }
+.equip-slot.empty { border: 3px dashed #d8ccd2; background: #faf6f8; cursor: default; }
+.equip-slot.on { border-color: var(--main); box-shadow: 0 0 0 3px var(--soft); }
+.equip-slot .item-pic { width: 60%; height: auto; }
+.equip-held { position: absolute; top: 4px; right: 4px; padding: 1px 7px; border-radius: 999px; background: var(--main); color: #fff; font-size: 12px; }
+.equip-detail { display: grid; gap: 6px; padding: 12px 14px; border-radius: 14px; background: #f0f7fd; border: 2px solid #b9dbf3; margin-bottom: 10px; }
+.equip-detail p { margin: 0; line-height: 1.6; }
+.equip-d-name { font: 700 20px "LXGW WenKai TC", serif; color: #1e5f8f; }
+.equip-d-held { color: #1e5f8f; font-weight: 700; }
+.equip-detail .btn { justify-self: start; min-height: 48px; padding: 0 26px; }
+.chest-got { text-align: center; }
+.chest-pic { display: grid; place-items: center; margin: 4px auto 0; animation: chest-spin 1.6s linear infinite; }
+@keyframes chest-spin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
+@media (prefers-reduced-motion: reduce) { .chest-pic { animation: none; } }
+.throw-btn { position: absolute; right: 22px; bottom: 26px; width: 92px; height: 92px; border: 0; border-radius: 50%; background: #d32f2f; color: #fff; font: 900 44px "Noto Sans TC", sans-serif; box-shadow: 0 6px 0 #a82424, 0 12px 26px rgba(90, 30, 30, .3); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.throw-btn[hidden] { display: none; }
+.throw-btn.down { transform: translateY(4px); box-shadow: 0 2px 0 #a82424; background: #e2453a; }

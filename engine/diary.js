@@ -1,5 +1,5 @@
 // engine/diary.js
-// 日記：小孩完成里程碑的那一天記一筆。現在的里程碑是「蓋好第幾座橋」「蓋好公路」「買了寵物」「累計登入 50、100…天」，直接從建設本算出來
+// 日記：小孩完成里程碑的那一天記一筆。現在的里程碑是「蓋好第幾座橋」「蓋好公路」「買了寵物」「累計登入 50、100…天」「打開寶箱拿到裝備」，直接從建設本算出來
 // （哪一天蓋了第幾座），所以不用另外存：建設本已經會存到試算表，換裝置也看得到。
 // 之後別的里程碑（例如打倒魔王）也在這裡加一種。純計算，不碰畫面。
 import { effectiveBuilds } from './build.js';
@@ -20,10 +20,10 @@ const fill = (s, vals) => String(s ?? '').replace(/\{(\w+)\}/g, (_, k) => String
 /**
  * builds：這個小孩的建設紀錄；plan：bridgePlan()（找兩頭的島）；names：島代號 → 島名；
  * text：config/text.json 的 calendar（bridgeTitle、bridgeBody、bridgeDiary）。
- * other：公路通到誰的群島（姐妹的稱呼）；breeds：寵物種類代號 → 名字（臺灣土狗），pet 開頭的文字是買寵物的。
+ * other：公路通到誰的群島（姐妹的稱呼）；breeds：寵物種類代號 → 名字（臺灣土狗），pet 開頭的文字是買寵物的；items：裝備代號 → 名字（飛盤），item 開頭的文字是打開寶箱的。
  * 回傳 [{ id, day: '2026-11-27', title, body, line }]，照時間排好
  */
-export function milestones({ builds = [], plan = [], names = {}, text = {}, timeZone = 'Asia/Taipei', other = '', breeds = {}, login = null }) {
+export function milestones({ builds = [], plan = [], names = {}, text = {}, timeZone = 'Asia/Taipei', other = '', breeds = {}, login = null, items = {} }) {
   const out = [];
   // 累計登入 50、100、200…天（login 是 engine/login.js 的 loginRules()；沒給就不算）
   if (login) {
@@ -43,6 +43,14 @@ export function milestones({ builds = [], plan = [], names = {}, text = {}, time
       const vals = { m: d.month, d: d.day, breed: breeds[code] || '', name: b.name || '' };
       const line = gift ? (text.giftDiary || text.petDiary) : text.petDiary;
       out.push({ id: b.key, day: dayOf(d), at: b.at, title: fill(text.petTitle, vals), body: fill(text.petBody, vals), line: fill(line, vals) });
+      continue;
+    }
+    if (b.kind === 'item') {
+      // 打開寶箱拿到裝備：「11/28 打開寶箱，拿到飛盤！」（items：裝備代號 → 名字）
+      const d = localDate(b.at, timeZone);
+      const code = b.key.replace(/^item-/, '');
+      const vals = { m: d.month, d: d.day, item: items[code] || '' };
+      out.push({ id: b.key, day: dayOf(d), at: b.at, art: 'chest', title: fill(text.itemTitle, vals), body: fill(text.itemBody, vals), line: fill(text.itemDiary, vals) });
       continue;
     }
     if (b.kind === 'road') {

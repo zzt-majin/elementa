@@ -1,5 +1,6 @@
 // world/controls.js
 // 鍵盤：方向鍵和 WASD 走路（照畫面方向），空白鍵（或 Enter）＝畫面下方的「進入」按鈕，Esc 關掉面板。
+// T：拿著飛盤時按住蓄力、放開丟出去（onThrowDown／onThrowUp；視窗失去焦點時 onThrowUp(true) 取消）。
 // enabled() 回傳 false 時（作答、看卡、面板打開、地圖模式）不攔鍵盤，方向鍵照常捲動頁面。
 const KEYS = {
   ArrowUp: [0, 1], KeyW: [0, 1],
@@ -8,7 +9,7 @@ const KEYS = {
   ArrowRight: [1, 0], KeyD: [1, 0],
 };
 
-export function createControls({ enabled = () => true, onAction = () => {}, onEscape = () => {} } = {}) {
+export function createControls({ enabled = () => true, onAction = () => {}, onEscape = () => {}, onThrowDown = () => {}, onThrowUp = () => {} } = {}) {
   const down = new Set();
   const typing = (e) => {
     const t = e.target;
@@ -18,6 +19,10 @@ export function createControls({ enabled = () => true, onAction = () => {}, onEs
     if (typing(e)) return;
     if (e.code === 'Escape') { onEscape(); return; }
     if (!enabled()) { down.clear(); return; }
+    if (e.code === 'KeyT') {
+      if (!e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && onThrowDown() !== false) e.preventDefault();
+      return;
+    }
     if (KEYS[e.code]) {
       e.preventDefault();
       down.add(e.code);
@@ -30,9 +35,12 @@ export function createControls({ enabled = () => true, onAction = () => {}, onEs
       onAction();
     }
   });
-  window.addEventListener('keyup', (e) => { down.delete(e.code); });
-  window.addEventListener('blur', () => down.clear());
-  document.addEventListener('visibilitychange', () => { if (document.hidden) down.clear(); });
+  window.addEventListener('keyup', (e) => {
+    down.delete(e.code);
+    if (e.code === 'KeyT') onThrowUp(false);
+  });
+  window.addEventListener('blur', () => { down.clear(); onThrowUp(true); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { down.clear(); onThrowUp(true); } });
 
   return {
     /** 畫面方向：{ x：右 +1、左 -1, y：上 +1、下 -1 } */

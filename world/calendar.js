@@ -68,6 +68,21 @@ const ICON_BG = { 功夫: '#ffe08a', 吉他: '#c9e7ff', 鍵盤: '#e3d6ff', 麥�
 };
 
 /** 祝賀畫面的橋（拱橋＋水＋星星） */
+/** 打開寶箱的祝賀圖：紅藍同心圓、中間白色星星的飛盤 */
+function chestArt() {
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 64 64');
+  svg.setAttribute('width', '84');
+  svg.setAttribute('height', '84');
+  svg.setAttribute('aria-hidden', 'true');
+  const add = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); svg.append(e); };
+  add('circle', { cx: 32, cy: 34, r: 27, fill: '#a82424' });
+  add('circle', { cx: 32, cy: 32, r: 27, fill: '#d32f2f' });
+  add('circle', { cx: 32, cy: 32, r: 17, fill: '#1e6fd9' });
+  add('path', { d: 'M32 20l3.4 7.4 8 .8-6 5.4 1.8 7.9-7.2-4.2-7.2 4.2 1.8-7.9-6-5.4 8-.8z', fill: '#fff' });
+  return svg;
+}
+
 function bridgeArt() {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 64 64');
@@ -324,7 +339,7 @@ export function createCalendar(root, host, { text = {}, config = {}, fetchText, 
   /** 祝賀畫面：m = { title, body, line }；按「寫進日記」（或 Esc）後呼叫 onDone */
   function celebrate(m, onDone) {
     const badge = el('div', 'cel-badge');
-    badge.append(m.art === 'login' ? iconSvg('星星', 84) : bridgeArt());
+    badge.append(m.art === 'login' ? iconSvg('星星', 84) : m.art === 'chest' ? chestArt() : bridgeArt());
     const note = el('div', 'cel-note');
     note.append(smallIcon(BOOK), el('span', '', T.willWrite), el('b', '', m.line));
     openDialog([badge, el('p', 'cel-kicker', T.milestone), el('h2', '', m.title), el('p', 'cel-body', m.body), note], m.title,

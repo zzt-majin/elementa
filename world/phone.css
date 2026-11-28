@@ -24,13 +24,15 @@
 #hud.phone .account { font-size: 13px; padding: 2px 4px 2px 10px; }
 
 /* 右邊直排的小圓鈕：地圖、商店、音樂（只有圖示，按鈕名稱仍給讀屏軟體） */
-#hud.phone .top > #map, #hud.phone .top > #shop, #hud.phone .top > .ph-music { position: absolute; right: 10px; width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+#hud.phone .top > #map, #hud.phone .top > #equip, #hud.phone .top > #shop, #hud.phone .top > .ph-music { position: absolute; right: 10px; width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 #hud.phone .top > #map { top: calc(100% + 2px); font-size: 0; }
 #hud.phone .top > #map::before { content: "🗺️"; font-size: 22px; }
 #hud.phone .top > #map[aria-pressed="true"]::before { content: "👸"; }
-#hud.phone .top > #shop { top: calc(100% + 58px); }
+#hud.phone .top > #equip { top: calc(100% + 58px); }
+#hud.phone .top > #equip span { display: none; }
+#hud.phone .top > #shop { top: calc(100% + 114px); }
 #hud.phone .top > #shop span { display: none; }
-#hud.phone .top > .ph-music { top: calc(100% + 114px); font-size: 22px; background: #fff; box-shadow: 0 3px 0 var(--soft); }
+#hud.phone .top > .ph-music { top: calc(100% + 170px); font-size: 22px; background: #fff; box-shadow: 0 3px 0 var(--soft); }
 #hud.phone .top > .ph-music[aria-expanded="true"] { background: var(--soft); }
 
 /* 時鐘音樂：收在音樂鈕裡；打開時出現在小圓鈕的左邊 */
