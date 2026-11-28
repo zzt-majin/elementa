@@ -12,11 +12,12 @@ import { speakButtons } from './speech.js';
  * onResult(result, level)：交卷後呼叫，回傳要顯示的額外資訊（例如 { improved, record }）。
  * onClose()：按「回到測驗塔」時呼叫。
  * onOpenChange(open)：測驗畫面打開或關上時呼叫（3D 場景可以趁這時暫停）。
+ * onQuiet(on)：停在有喇叭的題目（聽寫等）時 on=true，讓背景音樂暫停；換到別題、看成績、離開時 false。
  * ruleNote()：回傳作答畫面最上面要寫的規則（歐巴幣怎麼拿），空字串就不顯示；錯題重練不顯示。
  * refresh(level)：按「整關再挑戰」時呼叫，回傳同一關的新題目（出題模組用）；不給就用原來的題目。
  * speaker：world/speech.js 的 createSpeaker()；題目有「語音」時顯示喇叭按鈕（聽寫題只有喇叭，不顯示英文）。
  */
-export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange, refresh, ruleNote, speaker }) {
+export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange, onQuiet, refresh, ruleNote, speaker }) {
   const T = text.quiz;
   const fill = (s, vals) => String(s).replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
   let level = null;
@@ -40,13 +41,16 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
     return b;
   }
 
-  function show(nodes) {
+  function show(nodes, { quiet = false } = {}) {
     root.replaceChildren(el('div', 'quiz-wrap'));
     root.firstChild.append(...nodes);
     if (root.hidden) { root.hidden = false; onOpenChange?.(true); }
+    onQuiet?.(quiet);
   }
   function hide() {
     stopClock();
+    speaker?.stop();
+    onQuiet?.(false);
     root.hidden = true;
     root.replaceChildren();
     onOpenChange?.(false);
@@ -172,7 +176,7 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
     const note = session.retry ? '' : (ruleNote?.() || '');
     const noteEl = note ? el('p', 'quiz-rule', note) : null;
     // 提醒（還有幾題沒寫、確定要重新開始嗎…）放在按鈕下面，按了馬上看得到
-    show([bar, ...(noteEl ? [noteEl] : []), warnBox, dots, card, nav]);
+    show([bar, ...(noteEl ? [noteEl] : []), warnBox, dots, card, nav], { quiet: !!q.speech });
     if (focus && input) input.focus();
   }
 

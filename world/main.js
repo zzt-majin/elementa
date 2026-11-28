@@ -281,6 +281,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     ruleNote: () => (visitActivity ? '' : fill(RW().quizNote, { w: econ.wrongRates.length, coin: coinName(), ...econ.manyWrong })),
     refresh: (l) => freshen(l), // 「整關再挑戰」出新題目
     onOpenChange: overlayChange,
+    // 有喇叭的題目（聽寫等）背景音樂先停，才聽得清楚
+    onQuiet: (on) => { try { music.setQuiet(on); } catch { /* 音樂還沒準備好 */ } },
     speaker,
     onResult(result, level) {
       // 在姐妹的島上：不記成績、不給歐巴幣和寶石、不送到試算表

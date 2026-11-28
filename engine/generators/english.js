@@ -108,7 +108,8 @@ export const ENGLISH_TYPES = {
     const isAct = !!it.opts.base;
     return {
       type: '填答', lang: 'en', image: picUrl(cfg, it.opts.pic), speech: '',
-      text: '看圖寫英文' + (isAct ? '（做了什麼事，用過去式）' : '（這是什麼地方）') + '：\n' + letterHint(en),
+      text: '看圖寫英文' + (isAct ? '（做了什麼事，用過去式）' : '（這是什麼地方）') + '：\n' + letterHint(en)
+        + '\n✏️ 要寫出完整的英文，提示裡已經給的字母也要寫（一條底線是一個字母，例如 c _ t 要寫 cat）。',
       answers: [en],
       tip: en + '（' + it.cols[1] + '）' + (isAct ? '。原形是 ' + it.opts.base + '，過去式是 ' + en + '。' : '。'),
     };

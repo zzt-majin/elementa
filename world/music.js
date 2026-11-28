@@ -76,6 +76,8 @@ export function createMusicBox(raw, { muted = false, song = 0 } = {}) {
   let step = 0;
   let nextTime = 0;
   let isMuted = muted;
+  let isQuiet = false; // 暫時安靜（例如聽寫題要聽朗讀）；和小孩自己按的「關掉音樂」分開記
+  const silent = () => isMuted || isQuiet;
   let sleepTimer = null;
 
   function voice(inst, freq, at, length, level) {
@@ -138,34 +140,36 @@ export function createMusicBox(raw, { muted = false, song = 0 } = {}) {
 
   function start() {
     if (!songs.length) return;
-    if (ctx) { if (ctx.state === 'suspended' && !isMuted) ctx.resume(); return; }
+    if (ctx) { if (ctx.state === 'suspended' && !silent()) ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = isMuted ? 0 : volume;
+    master.gain.value = silent() ? 0 : volume;
     master.connect(ctx.destination);
     newBus();
     timer = setInterval(schedule, 100);
-    if (isMuted) ctx.suspend();
+    if (silent()) ctx.suspend();
     document.addEventListener('visibilitychange', () => {
       if (!ctx) return;
-      if (document.hidden) ctx.suspend(); else if (!isMuted) ctx.resume();
+      if (document.hidden) ctx.suspend(); else if (!silent()) ctx.resume();
     });
   }
 
-  function setMuted(m) {
-    isMuted = !!m;
+  function apply() {
     if (!ctx) return;
     clearTimeout(sleepTimer);
-    if (isMuted) {
+    if (silent()) {
       master.gain.setTargetAtTime(0, ctx.currentTime, 0.08);
-      sleepTimer = setTimeout(() => { if (isMuted) ctx.suspend(); }, 400); // 關掉後讓音效晶片休息，平板比較省電
+      sleepTimer = setTimeout(() => { if (silent() && ctx) ctx.suspend(); }, 400); // 關掉後讓音效晶片休息，平板比較省電
     } else {
       ctx.resume();
       master.gain.setTargetAtTime(volume, ctx.currentTime, 0.08);
     }
   }
+  function setMuted(m) { isMuted = !!m; apply(); }
+  /** 暫時安靜：on=true 音樂淡出，false 回來（小孩自己關掉音樂的話照樣不放） */
+  function setQuiet(on) { isQuiet = !!on; apply(); }
 
   function setSong(i) {
     index = wrapIndex(i, songs.length);
@@ -176,10 +180,12 @@ export function createMusicBox(raw, { muted = false, song = 0 } = {}) {
   return {
     start,
     setMuted,
+    setQuiet,
     setSong,
     next: () => setSong(index + 1),
     prev: () => setSong(index - 1),
     get muted() { return isMuted; },
+    get quiet() { return isQuiet; },
     get index() { return index; },
     get count() { return songs.length; },
     get name() { return songs[index]?.name || ''; },
