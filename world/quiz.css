@@ -21,6 +21,7 @@
 .fill input { font: 24px "Noto Sans TC", sans-serif; font-variant-numeric: tabular-nums; width: 220px; max-width: 100%; padding: 8px 14px; border: 2px solid var(--main); border-radius: 14px; color: var(--ink); background: #fff; }
 .fill input:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
 .warns:empty { display: none; }
+.quiz-rule { margin: 0; padding: 8px 14px; border-radius: 12px; background: #fff8dc; color: #6b4a00; font-size: 15px; line-height: 1.5; box-shadow: 0 2px 0 #f3d98a; }
 .warn { margin: 0; color: #c21d36; font-weight: 700; }
 .quiz-nav, .quiz-wrap > .side { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
 .quiz-wrap > .side { justify-content: flex-start; }

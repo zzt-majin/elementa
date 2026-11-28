@@ -132,6 +132,7 @@ export function createCloud({ settings, store, fetchFn, onStatus = () => {}, onP
         total: summary.total,
         used: summary.used,
         timeUp: !!summary.timeUp,
+        ...(game || !Number.isInteger(summary.blanks) ? {} : { blanks: summary.blanks }),
         retry: !game && !!summary.retry,
         ...(game ? { kind: 'game' } : {}),
       };

@@ -32,7 +32,7 @@
     "submit": "交卷",
     "restart": "重新開始",
     "leave": "離開",
-    "blankWarn": "還有 {n} 題沒寫。確定要交，就再按一次「交卷」。",
+    "blankWarn": "還有 {n} 題沒寫。還沒寫完就交卷，錯 3 題以上就拿不到歐巴幣喔！確定要交，就再按一次「交卷」。",
     "restartWarn": "重新開始會清空這次寫的答案，時間從頭算。確定的話再按一次「重新開始」。",
     "leaveWarn": "現在離開，這次寫的答案不會存。確定的話再按一次「離開」。",
     "resultTitle": "{name}　成績",
@@ -204,7 +204,7 @@
   "reward": {
     "_說明": "測驗塔和遊戲帳篷裡的獎賞說明。大括號裡的數字從 config/economy.json 帶進來：{coin} 歐巴幣、{gem} 那一科的寶石名稱。exampleCorrect 是帳篷例子裡「答對幾題」。",
     "towerTitle": "🏆 歐巴幣怎麼拿",
-    "towerRule": "全對拿完整的{coin}（{first}＋每題 {per}，7 題就是 {ex}）；{list}，錯 {none} 題以上就沒有。之後寫得更好，會補發差額。已經全對過的關卡，每天再寫還能拿 {daily} 枚，一樣照錯幾題打折。",
+    "towerRule": "全對拿完整的{coin}（{first}＋每題 {per}，7 題就是 {ex}）；{list}。錯 {none} 題以上：全部寫完再交 {done} 枚、時間到還沒寫完 {timeUp} 枚、還沒寫完就自己按交卷 {submitEarly} 枚。之後寫得更好，會補發差額。已經全對過的關卡，每天再寫還能拿 {daily} 枚，一樣照錯幾題算。",
     "wrongRate": "錯 {w} 題打 {rate}",
     "none": "沒有",
     "levelLine": "獎勵說明：{items} {coin}",
@@ -226,7 +226,10 @@
     "todayLeft": "今天還能拿 {n} {coin}",
     "todayFull": "今天的搶答賽{coin}拿滿了，明天再來！還是可以練習、拿{gem}",
     "todayFullNoGem": "今天的搶答賽{coin}拿滿了，明天再來！",
-    "bestTarget": "個人最高紀錄：答對 {n} 題。答對 {m} 題以上，就能多拿 +{bonus} {coin}！"
+    "bestTarget": "個人最高紀錄：答對 {n} 題。答對 {m} 題以上，就能多拿 +{bonus} {coin}！",
+    "manyItem": "錯 {w} 題以上 +{n}",
+    "quizNote": "🏆 錯 {w} 題以上也有{coin}：全部寫完再交 {done} 枚、時間到還沒寫完 {timeUp} 枚。還沒寫完就按交卷是 {submitEarly} 枚，所以每一題都要寫喔！",
+    "earlyHint": "這次還沒寫完就交卷，所以沒有{coin}。下次每一題都寫完再交，錯很多題也有 {n} 枚喔！"
   },
   "bridge": {
     "_說明": "蓋橋（世界設定第 4 步）。{from}／{to} 換成島名，{n} 是數字，{coin} 是歐巴幣的名字。intro 開頭的是蓋好第 1 座以後跳出的「橋越蓋越貴囉！」說明，{done} 是已經蓋了幾座，{step} 是每座多多少。",

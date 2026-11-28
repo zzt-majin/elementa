@@ -178,6 +178,7 @@ test('精簡紀錄格式和清單版作答紀錄一致', () => {
   const s = createSession(sample, { now: T0 });
   setAnswer(s, 2);
   const sum = resultSummary(grade(s, sample, { now: T0 + 1000 }), sample);
+  assert.equal(sum.blanks, sum.items.filter((x) => x.given === '').length); // 沒寫幾題（錯 3 題以上的歐巴幣要用）
   assert.equal(sum.kid, '測試');
   assert.deepEqual(sum.items[0], { n: '1', ok: false, given: '3', right: '0.8' });
   assert.equal(sum.items[1].given, '');

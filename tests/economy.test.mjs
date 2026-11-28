@@ -2,7 +2,7 @@
 // 檢查歐巴幣和寶石的帳本：每條規則、每天上限、錯題重練不給、合併本機和雲端紀錄不重複、扣掉花費。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { economyRules, computeWallet, canAfford, createLedger, cleanEntry, localDay, DEFAULTS, previewEarn } from '../engine/economy.js';
+import { economyRules, computeWallet, canAfford, createLedger, cleanEntry, localDay, DEFAULTS, previewEarn, manyWrongCoins } from '../engine/economy.js';
 import { memoryStorage } from '../engine/progress.js';
 
 let passed = 0;
@@ -240,6 +240,82 @@ test('紀錄本存起來，重新打開還在', () => {
 test('哪一天照裝置時區', () => {
   assert.equal(localDay(T0), '2026-11-25');
   assert.equal(localDay(T0 + DAY), '2026-11-26');
+});
+
+// ---------- 錯 3 題以上（2026-11-28 家長改）----------
+const lvB = (score, total, blanks, timeUp = false, at = T0, level = 'jie-6a-math-unit-01') => ({ ...lv(score, total, at, level), blanks, timeUp });
+
+test('網站設定：錯 3 題以上 寫完 2、時間到沒寫完 1、沒寫完就交卷 0', () => {
+  assert.deepEqual(rules.manyWrong, { done: 2, timeUp: 1, submitEarly: 0 });
+  assert.deepEqual(economyRules({}).manyWrong, DEFAULTS.manyWrong);
+  assert.deepEqual(economyRules({ earn: { manyWrong: { done: -1, timeUp: 'x' } } }).manyWrong, DEFAULTS.manyWrong);
+});
+
+test('錯 3 題以上：全部寫完 +2', () => {
+  assert.equal(wallet([lvB(4, 7, 0)]).coins - 50, 2);
+  assert.equal(wallet([lvB(0, 7, 0)]).coins - 50, 2);
+});
+
+test('錯 3 題以上：時間到還沒寫完（沒寫的算錯）+1', () => {
+  assert.equal(wallet([lvB(3, 7, 2, true)]).coins - 50, 1);
+  assert.equal(wallet([lvB(0, 7, 7, true)]).coins - 50, 1);
+});
+
+test('錯 3 題以上：還沒寫完就自己按交卷 0（少一題都不行）', () => {
+  assert.equal(wallet([lvB(4, 7, 1, false)]).coins - 50, 0);
+  assert.equal(wallet([lvB(0, 7, 7, false)]).coins - 50, 0);
+});
+
+test('錯 0～2 題照舊打折（有沒寫完都一樣）', () => {
+  assert.equal(wallet([lvB(6, 7, 1, false)]).coins - 50, 40);
+  assert.equal(wallet([lvB(5, 7, 2, true)]).coins - 50, 22);
+});
+
+test('舊紀錄沒有記沒寫幾題：錯 3 題以上照舊 0', () => {
+  assert.equal(wallet([lv(4, 7)]).coins - 50, 0);
+  assert.equal(manyWrongCoins({ score: 4, total: 7 }, rules), 0);
+});
+
+test('錯 3 題以上的 2 枚同一關只拿一次，之後寫更好補差額', () => {
+  const a = lvB(4, 7, 0, false, T0); const b = lvB(3, 7, 0, false, T0 + 1000); const c = lvB(5, 7, 0, false, T0 + 2000);
+  const w = wallet([a, b, c]);
+  const got = (x) => w.events.find((v) => v.id === x.id).coins;
+  assert.deepEqual([got(a), got(b), got(c)], [2, 0, 20]);
+  assert.equal(w.coins, 50 + 22);
+});
+
+test('時間到 1 → 之後寫完 2：補 1', () => {
+  const a = lvB(2, 7, 3, true, T0); const b = lvB(4, 7, 0, false, T0 + 1000);
+  const w = wallet([a, b]);
+  assert.deepEqual(w.events.map((v) => v.coins), [1, 1]);
+});
+
+test('已全對的關卡隔天錯 3 題以上寫完：+2（每天一次）', () => {
+  const base = [lv(7, 7)];
+  assert.equal(wallet([...base, lvB(4, 7, 0, false, T0 + DAY)]).coins, 95 + 2);
+  assert.equal(wallet([...base, lvB(4, 7, 0, false, T0 + DAY), lvB(4, 7, 0, false, T0 + DAY + 1)]).coins, 95 + 2);
+  assert.equal(wallet([...base, lvB(4, 7, 0, false, T0 + DAY), lvB(4, 7, 0, false, T0 + 2 * DAY)]).coins, 95 + 4);
+});
+
+test('cleanEntry 留下 timeUp 和 blanks，亂填的 blanks 丟掉', () => {
+  const e = cleanEntry({ id: 'a', at: T0, level: 'x', score: 3, total: 7, kind: 'level', timeUp: true, blanks: 2 });
+  assert.equal(e.timeUp, true); assert.equal(e.blanks, 2);
+  assert.ok(!('blanks' in cleanEntry({ id: 'a', at: T0, level: 'x', score: 3, total: 7, kind: 'level', blanks: 9 })));
+  assert.ok(!('blanks' in cleanEntry({ id: 'a', at: T0, level: 'x', score: 3, total: 7, kind: 'level', blanks: '' })));
+  assert.ok(!('timeUp' in cleanEntry({ id: 'a', at: T0, level: 'x', score: 3, total: 7, kind: 'level', timeUp: '是' })));
+});
+
+test('previewEarn 也算得出錯 3 題以上的 2 枚', () => {
+  assert.equal(previewEarn({ history: [], rules, entry: { level: 'y', island: 'math', score: 4, total: 7, kind: 'level', blanks: 0 }, now: T0 }).coins, 2);
+});
+
+test('半分：打折時半對算錯一題、寶石取整數、要整題都對才算全對', () => {
+  const w = wallet([lvB(6.5, 7, 0)]);
+  assert.equal(w.coins - 50, 40); // 錯 1 題（半對）9 折
+  assert.equal(w.gems.math, 6);
+  assert.equal(wallet([lvB(4.5, 7, 0)]).coins - 50, 2); // 7 − 4.5 = 2.5 → 錯 3 題
+  assert.equal(cleanEntry({ id: 'h', at: T0, level: 'x', score: 7.5, total: 10, kind: 'level' }).score, 7.5);
+  assert.equal(cleanEntry({ id: 'h', at: T0, level: 'game-math', score: 7.5, total: 10, kind: 'game' }).score, 7);
 });
 
 console.log(passed + ' 項通過' + (process.exitCode ? '，有失敗' : ''));

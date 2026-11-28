@@ -14,7 +14,7 @@ const BUILD_HEADERS = ['時間', '小孩', '類型', '代號', '名稱', '歐巴
 // 建設的「類型」對應網站的 kind
 // 「登入」是那一天有來玩（網站照這個算每日登入獎勵），一天一筆，歐巴幣欄是 0
 const BUILD_KINDS = { '橋': 'bridge', '公路': 'road', '寵物': 'pet', '登入': 'login' };
-const LOG_HEADERS = ['時間', '小孩', '關卡代號', '關卡名稱', '答對', '題數', '用時（秒）', '時間到', '類型', '編號'];
+const LOG_HEADERS = ['時間', '小孩', '關卡代號', '關卡名稱', '答對', '題數', '用時（秒）', '時間到', '類型', '編號', '沒寫題數'];
 // 作答紀錄的「類型」對應網站帳本的 kind（歐巴幣、寶石照這個算）
 const KINDS = { '整關': 'level', '錯題重練': 'retry', '搶答賽': 'game' };
 
@@ -109,7 +109,8 @@ function handle_(d) {
 
 function save_(name, d) {
   const level = String(d.level || '');
-  const score = Math.floor(Number(d.score));
+  // 分數可以有半分（英語句子拼字對、只錯大寫或標點得一半，2026-11-28 加），四捨五入到 0.5
+  const score = Math.round(Number(d.score) * 2) / 2;
   const total = Math.floor(Number(d.total));
   const used = Math.floor(Number(d.used));
   if (!/^[a-z0-9-]{1,60}$/.test(level)) return { ok: false, error: 'bad' };
@@ -122,6 +123,9 @@ function save_(name, d) {
   const retry = !game && d.retry === true;
   const kind = game ? '搶答賽' : retry ? '錯題重練' : '整關';
   const id = /^[\w-]{1,40}$/.test(String(d.id || '')) ? String(d.id) : '';
+  // 沒寫幾題（2026-11-28 加：錯 3 題以上時，寫完、時間到、沒寫完就交卷給的歐巴幣不一樣）；舊版網站沒送就空白
+  const blanks = Number(d.blanks);
+  const blanksCell = !game && Number.isInteger(blanks) && blanks >= 0 && blanks <= Math.ceil(total - score) ? blanks : '';
   const now = new Date();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -133,7 +137,8 @@ function save_(name, d) {
     if (id && log.getLastRow() > 1 && log.getRange(2, 10, log.getLastRow() - 1, 1).getDisplayValues().some(function (r) { return r[0] === id; })) {
       return { ok: true, progress: progress_(name), history: history_(name) };
     }
-    log.appendRow([now, name, level, levelName, score, total, used, d.timeUp === true ? '是' : '', kind, id]);
+    if (log.getRange(1, 11).getValue() === '') log.getRange(1, 11).setValue(LOG_HEADERS[10]); // 舊的工作表補上「沒寫題數」標題
+    log.appendRow([now, name, level, levelName, score, total, used, d.timeUp === true ? '是' : '', kind, id, blanksCell]);
     if (!retry) {
       const sh = ss.getSheetByName(PROGRESS);
       const rows = sh.getDataRange().getValues();
@@ -230,7 +235,7 @@ function buildRows_(want, noLogin) {
 function history_(name) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(LOG);
   if (!sh || sh.getLastRow() < 2) return [];
-  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 10).getValues();
+  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 11).getValues();
   const out = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
@@ -238,7 +243,10 @@ function history_(name) {
     const kind = KINDS[String(r[8])];
     const at = r[0] instanceof Date ? r[0].getTime() : new Date(r[0]).getTime();
     if (!kind || !isFinite(at)) continue;
-    out.push({ id: String(r[9] || '') || 'row-' + at + '-' + r[2], at: at, level: String(r[2]), score: Number(r[4]) || 0, total: Number(r[5]) || 0, kind: kind });
+    const e = { id: String(r[9] || '') || 'row-' + at + '-' + r[2], at: at, level: String(r[2]), score: Number(r[4]) || 0, total: Number(r[5]) || 0, kind: kind };
+    if (String(r[7]) === '是') e.timeUp = true;
+    if (r[10] !== '' && r[10] !== null && isFinite(Number(r[10]))) e.blanks = Number(r[10]);
+    out.push(e);
   }
   return out;
 }

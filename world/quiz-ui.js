@@ -11,9 +11,10 @@ import {
  * onResult(result, level)：交卷後呼叫，回傳要顯示的額外資訊（例如 { improved, record }）。
  * onClose()：按「回到測驗塔」時呼叫。
  * onOpenChange(open)：測驗畫面打開或關上時呼叫（3D 場景可以趁這時暫停）。
+ * ruleNote()：回傳作答畫面最上面要寫的規則（歐巴幣怎麼拿），空字串就不顯示；錯題重練不顯示。
  * refresh(level)：按「整關再挑戰」時呼叫，回傳同一關的新題目（出題模組用）；不給就用原來的題目。
  */
-export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange, refresh }) {
+export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange, refresh, ruleNote }) {
   const T = text.quiz;
   const fill = (s, vals) => String(s).replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
   let level = null;
@@ -154,8 +155,11 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
     );
     nav.append(side);
 
+    // 規則（錯 3 題以上…）放在最上面，一開始就看得到
+    const note = session.retry ? '' : (ruleNote?.() || '');
+    const noteEl = note ? el('p', 'quiz-rule', note) : null;
     // 提醒（還有幾題沒寫、確定要重新開始嗎…）放在按鈕下面，按了馬上看得到
-    show([bar, warnBox, dots, card, nav]);
+    show([bar, ...(noteEl ? [noteEl] : []), warnBox, dots, card, nav]);
     if (focus && input) input.focus();
   }
 

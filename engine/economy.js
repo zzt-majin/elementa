@@ -4,12 +4,16 @@
 // 純邏輯，不碰畫面、不含小孩名字；作答紀錄存在哪裡由外面決定（createLedger 的 storage）。
 //
 // 一筆作答紀錄（entry）：
-//   { id, at: 毫秒, level: 關卡代號, island: 島的代號（math…）, score, total, kind: 'level' | 'retry' | 'game' }
+//   { id, at: 毫秒, level: 關卡代號, island: 島的代號（math…）, score, total, kind: 'level' | 'retry' | 'game',
+//     timeUp: 時間到自動交卷, blanks: 沒寫的題數（舊紀錄沒有） }
 //   id 和送到試算表的編號一樣，本機和雲端的紀錄靠它合併。
 // 一筆花費（spend）：{ id, at, coins, gems: { math: 60 } }
 //
 // 測驗的歐巴幣（2026-11-27 家長定）：一關的「完整歐巴幣」= 第一次交卷 + 每題 × 題數（7 題 = 45）。
-// 全對拿完整；錯 1 題 9 折、錯 2 題 5 折（無條件捨去）；錯 3 題以上 0。
+// 全對拿完整；錯 1 題 9 折、錯 2 題 5 折（無條件捨去）。
+// 錯 3 題以上（2026-11-28 家長改）：全部寫完 2 枚、時間到還沒寫完 1 枚、還沒寫完就自己交卷 0 枚（manyWrong）。
+// 紀錄沒有記「沒寫幾題」（blanks）的舊作答，錯 3 題以上照舊 0 枚。
+// 半分（英語句子只錯大寫或標點）：打折時半對算錯一題，寶石照分數取整數，要每一題都整題對才算全對。
 // 之後寫得更好，補發差額（最多補到完整）。已全對過的關卡，每天再寫一次也照同樣的折扣給「每天再全對」那一份。
 // coinsResetAt：這個時間以前的作答不算歐巴幣（也不給見面禮），以前寫過的關卡可以重新拿第一次的獎勵；寶石照算。
 // 搶答賽「打破最高紀錄」照全部紀錄的最高分比（和畫面上的個人最高紀錄一樣），只是歸零以前的不給歐巴幣。
@@ -27,6 +31,7 @@ export const DEFAULTS = {
   gemGameEvery: 5,
   gemDailyCapPerIsland: 30,
   wrongRates: [1, 0.9, 0.5],
+  manyWrong: { done: 2, timeUp: 1, submitEarly: 0 },
 };
 
 /** 把 config/economy.json 讀成規則；數字不合理就用預設 */
@@ -52,6 +57,13 @@ export function economyRules(raw = {}) {
   const rates = Array.isArray(earn.wrongRates) ? earn.wrongRates : null;
   rules.wrongRates = rates && rates.length && rates.length <= 50 && rates.every((v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1)
     ? rates.map(Number) : D.wrongRates.slice();
+  // 錯太多題時給幾枚：寫完、時間到、沒寫完就交卷
+  const mw = obj(earn.manyWrong);
+  rules.manyWrong = {
+    done: n(mw.done, 0, 1000, D.manyWrong.done),
+    timeUp: n(mw.timeUp, 0, 1000, D.manyWrong.timeUp),
+    submitEarly: n(mw.submitEarly, 0, 1000, D.manyWrong.submitEarly),
+  };
   // 歐巴幣歸零的時間：ISO 時間字串，例如 2026-11-27T18:00:00+08:00；空白就不歸零
   const resetAt = typeof raw.coinsResetAt === 'string' && raw.coinsResetAt ? Date.parse(raw.coinsResetAt) : NaN;
   rules.coinsResetAt = Number.isFinite(resetAt) ? resetAt : 0;
@@ -82,11 +94,27 @@ export function cleanEntry(e) {
   if (!e || typeof e !== 'object') return null;
   const at = Number(e.at);
   const total = Math.floor(Number(e.total));
-  const score = Math.floor(Number(e.score));
+  // 測驗可以有半分（英語句子只錯大寫或標點），搶答賽是整數
+  const score = e.kind === 'game' ? Math.floor(Number(e.score)) : Math.round(Number(e.score) * 2) / 2;
   const kind = ['level', 'retry', 'game'].includes(e.kind) ? e.kind : null;
   if (!kind || !Number.isFinite(at) || !(total >= 1 && total <= 200) || !(score >= 0 && score <= (kind === 'game' ? 1000 : total))) return null;
   if (typeof e.id !== 'string' || !e.id || typeof e.level !== 'string' || !e.level) return null;
-  return { id: e.id, at, level: e.level, island: typeof e.island === 'string' ? e.island : '', score, total, kind };
+  const out = { id: e.id, at, level: e.level, island: typeof e.island === 'string' ? e.island : '', score, total, kind };
+  if (e.timeUp === true) out.timeUp = true;
+  const blanks = e.blanks === '' || e.blanks === null || e.blanks === undefined ? NaN : Number(e.blanks);
+  if (Number.isInteger(blanks) && blanks >= 0 && blanks <= Math.ceil(total - score)) out.blanks = blanks;
+  return out;
+}
+
+/**
+ * 錯太多題（超過 wrongRates）時這一次給幾枚：全部寫完 done、時間到還沒寫完 timeUp、沒寫完就交卷 submitEarly。
+ * 沒有記 blanks 的舊紀錄給 0。
+ */
+export function manyWrongCoins(e, rules) {
+  const m = rules?.manyWrong || DEFAULTS.manyWrong;
+  if (!Number.isInteger(e?.blanks)) return 0;
+  if (e.blanks === 0) return m.done;
+  return e.timeUp ? m.timeUp : m.submitEarly;
 }
 
 /**
@@ -107,7 +135,14 @@ export function computeWallet({ history = [], spends = [], bonuses = [], rules, 
   const reset = r.coinsResetAt || 0;
   const earned = { coins: reset ? 0 : r.firstLoginGift, gems: {} };
   const rates = r.wrongRates || DEFAULTS.wrongRates;
-  const rateOf = (score, total) => rates[total - score] ?? 0;
+  // 錯幾題：半對的題目當成錯一題（7.5 / 10 → 錯 3 題）
+  const rateOf = (score, total) => rates[Math.ceil(total - score)] ?? 0;
+  /** 這一次照錯幾題應該拿到多少（full 是全對的數字）；錯太多題時照 manyWrong，但不超過 full */
+  const dueOf = (e, full) => {
+    if (e.score >= e.total) return full;
+    const rate = rateOf(e.score, e.total);
+    return rate > 0 ? Math.floor(full * rate) : Math.min(full, manyWrongCoins(e, r));
+  };
   const events = [];
 
   for (const e of list) {
@@ -136,23 +171,24 @@ export function computeWallet({ history = [], spends = [], bonuses = [], rules, 
       if (coinsCount) {
         let c = coinLv.get(e.level);
         if (!c) { c = { paid: 0, perfect: false, perfectDay: '', day: '', dayPaid: 0 }; coinLv.set(e.level, c); }
-        const rate = rateOf(e.score, e.total);
         if (!c.perfect) {
           // 還沒全對過：完整 = 第一次交卷 + 每題 × 題數，照錯幾題打折，補發比之前多的部分
           const full = r.levelFirstSubmit + r.levelFirstPerfectPerQuestion * e.total;
-          const due = perfect ? full : Math.floor(full * rate);
+          const due = dueOf(e, full);
           if (due > c.paid) { coins += due - c.paid; c.paid = due; }
           if (perfect) { c.perfect = true; c.perfectDay = day; } // 第一次全對那天，不再給「每天再全對」
         } else if (c.perfectDay !== day) {
           // 已全對過：每天一份「再全對」，一樣照錯幾題打折，當天寫更好就補差額
           if (c.day !== day) { c.day = day; c.dayPaid = 0; }
-          const due = Math.floor(r.levelRepeatPerfectDaily * rate);
+          const due = dueOf(e, r.levelRepeatPerfectDaily);
           if (due > c.dayPaid) { coins += due - c.dayPaid; c.dayPaid = due; }
         }
       }
       // 寶石：每關每天只算當天最好的一次（多答對的題數才補給）
       if (s.gemDay !== day) { s.gemDay = day; s.gemBest = 0; }
-      if (e.score > s.gemBest) { gems += (e.score - s.gemBest) * r.gemPerCorrect; s.gemBest = e.score; }
+      // 寶石照分數取整數（7.5 分算 7 題）
+      const whole = Math.floor(e.score);
+      if (whole > s.gemBest) { gems += (whole - s.gemBest) * r.gemPerCorrect; s.gemBest = whole; }
     }
     if (island && gems > 0 && r.gemDailyCapPerIsland > 0) {
       const key = island + '|' + day;

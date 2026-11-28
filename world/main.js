@@ -236,7 +236,9 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   /** 記進帳本，回傳交卷畫面要顯示的「獲得 …」 */
   function earn(k, summary, kind) {
     const island = islandOfSubject(summary.subject);
-    ledger.add(k, { id: summary.id, at: Date.parse(summary.at) || Date.now(), level: summary.level, island, score: summary.score, total: summary.total, kind });
+    const entry = { id: summary.id, at: Date.parse(summary.at) || Date.now(), level: summary.level, island, score: summary.score, total: summary.total, kind };
+    if (kind !== 'game') { entry.timeUp = !!summary.timeUp; entry.blanks = summary.blanks; }
+    ledger.add(k, entry);
     const ev = walletOf(k).events.find((x) => x.id === summary.id);
     showWallet();
     if (!ev || kind === 'retry') return '';
@@ -244,7 +246,11 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const parts = [];
     if (ev.coins) parts.push(fill(T.coins, { n: ev.coins, name: econ.currencyName || '歐巴幣' }));
     for (const [code, n] of Object.entries(ev.gems)) parts.push(fill(T.gems, { n, name: econ.gems[code]?.name || '' }));
-    return parts.length ? fill(T.reward, { items: parts.join('、') }) : (T.noReward || '');
+    // 錯太多題又沒寫完就交卷：告訴小孩下次寫完再交也有歐巴幣
+    const early = kind === 'level' && !ev.coins && summary.blanks > 0 && !summary.timeUp && summary.total - summary.score >= econ.wrongRates.length;
+    const hint = early ? fill(RW().earlyHint, { n: econ.manyWrong.done, coin: coinName() }) : '';
+    const line = parts.length ? fill(T.reward, { items: parts.join('、') }) : (early ? '' : (T.noReward || ''));
+    return [line, hint].filter(Boolean).join(' ');
   }
 
   let paused = false;
@@ -256,6 +262,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const quiz = createQuizUI(quizRoot, {
     text,
     settings,
+    // 作答畫面最上面的歐巴幣規則（錯題重練、在姐妹的島上不顯示）
+    ruleNote: () => (visitActivity ? '' : fill(RW().quizNote, { w: econ.wrongRates.length, coin: coinName(), ...econ.manyWrong })),
     refresh: (l) => freshen(l), // 「整關再挑戰」出新題目
     onOpenChange: overlayChange,
     onResult(result, level) {
@@ -1026,12 +1034,13 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const per = econ.levelFirstPerfectPerQuestion;
     return {
       title: T.towerTitle,
-      rule: fill(T.towerRule, { coin: coinName(), first, per, ex: first + per * 7, list, none: rates.length, daily: econ.levelRepeatPerfectDaily }),
+      rule: fill(T.towerRule, { coin: coinName(), first, per, ex: first + per * 7, list, none: rates.length, daily: econ.levelRepeatPerfectDaily, ...econ.manyWrong }),
       /** 這一關（或綜合練習）現在交卷：全對、錯 1 題、錯 2 題…各會拿多少 */
       coinLine(levelId, total) {
-        const vals = rates.map((_, w) => (total - w >= 0 ? preview({ level: levelId, island: def.code, score: total - w, total, kind: 'level' }).coins : 0));
-        if (vals.every((v) => !v)) return T.levelDone;
-        const items = vals.map((n, w) => (w ? fill(T.wrongItem, { w, n }) : fill(T.perfectItem, { n }))).join('・');
+        const vals = rates.map((_, w) => (total - w >= 0 ? preview({ level: levelId, island: def.code, score: total - w, total, kind: 'level', blanks: 0 }).coins : 0));
+        const many = total >= rates.length ? preview({ level: levelId, island: def.code, score: total - rates.length, total, kind: 'level', blanks: 0 }).coins : 0;
+        if (vals.every((v) => !v) && !many) return T.levelDone;
+        const items = [...vals.map((n, w) => (w ? fill(T.wrongItem, { w, n }) : fill(T.perfectItem, { n }))), ...(total >= rates.length ? [fill(T.manyItem, { w: rates.length, n: many })] : [])].join('・');
         return fill(T.levelLine, { items, coin: coinName() });
       },
     };

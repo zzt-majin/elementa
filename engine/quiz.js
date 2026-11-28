@@ -178,6 +178,7 @@ export function resultSummary(result, level) {
     limit: result.limit,
     timeUp: result.timeUp,
     retry: result.retry,
+    blanks: result.items.filter((x) => isBlank(x.given)).length,
     items: result.items.map((x) => ({ n: x.no, ok: x.ok, given: x.givenText, right: x.rightText })),
   };
 }
