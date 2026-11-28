@@ -23,7 +23,7 @@ const json = async (p) => JSON.parse(await readFile(here(p), 'utf8'));
 const cfg = await json('config/generators/math.json');
 const { levels: raw, errors } = await loadLevels(here('content/levels/'), (p) => readFile(p, 'utf8'));
 // 網站裡搶答賽的題庫是一個小孩一座島；這裡用姐姐的六上數學測（妹妹四上的題型在 generate-g4.test.mjs）
-const levels = raw.filter((l) => l.meta.kid === '姐姐').map((l) => materialize(l, { cfg, seed: 12345 }));
+const levels = raw.filter((l) => l.meta.kid === '姐姐' && l.meta.subject === '數學').map((l) => materialize(l, { cfg, seed: 12345 }));
 
 // ---------- 參數 ----------
 

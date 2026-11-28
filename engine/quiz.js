@@ -37,10 +37,11 @@ export function normalizeAnswer(s) {
 const isBlank = (v) => v === undefined || v === null || v === '';
 
 /**
- * 這一題答對了嗎？
+ * 這一題答對了嗎（整題都對才算）？
  * 選擇題 given 是選項的位置（0 起算）；填答題 given 是小孩打的字。
  * 填答題：整理後和任一個標準答案相同，或兩邊都是數字且相等，就算對。
  * 分數不會自動約分比對（9/10 和 18/20 不同），要接受的寫法請在關卡檔用 | 列出。
+ * 英語題（lang: 'en'）照 englishCredit 的規則：只有拿到整題分數才算對。
  */
 export function isCorrect(q, given) {
   if (isBlank(given)) return false;
@@ -48,6 +49,7 @@ export function isCorrect(q, given) {
     const i = q.options.findIndex((o) => o.correct);
     return Number(given) === i;
   }
+  if (q.lang === 'en') return englishCredit(q, given).credit === 1;
   const g = normalizeAnswer(given);
   if (!g) return false;
   return q.answers.some((a) => {
@@ -57,6 +59,61 @@ export function isCorrect(q, given) {
     const y = Number(g);
     return n !== '' && Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) < 1e-9;
   });
+}
+
+// ---------- 英語判分 ----------
+
+/** 英語答案的整理：全形轉半形、彎引號變直的、中文句號變英文句號、多的空格合成一個 */
+export function cleanEnglish(s) {
+  return String(s ?? '')
+    .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[‘’ʼ`´]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/。/g, '.')
+    .replace(/　/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const CONTRACTIONS = [
+  [/\bdidn't\b/g, 'did not'], [/\bdon't\b/g, 'do not'], [/\bdoesn't\b/g, 'does not'],
+  [/\bisn't\b/g, 'is not'], [/\baren't\b/g, 'are not'], [/\bwasn't\b/g, 'was not'], [/\bweren't\b/g, 'were not'],
+  [/\bi'm\b/g, 'i am'], [/\bit's\b/g, 'it is'], [/\bcan't\b/g, 'can not'], [/\bcannot\b/g, 'can not'],
+];
+
+/** 只比字（拼字）：不分大小寫、拿掉標點、縮寫展開（didn't ＝ did not），字和字之間一個空格 */
+export function englishWords(s) {
+  let t = cleanEnglish(s).toLowerCase().replace(/[.,!?;:"]/g, ' ');
+  for (const [re, to] of CONTRACTIONS) t = t.replace(re, to);
+  return t.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * 英語填答題拿幾分：{ credit: 1 | 0.5 | 0, notes: [] }
+ * 單字／片語：拼字對就 1（不分大小寫、前後空白和標點不算）。
+ * 整句（q.sentence）：拼字錯 0；拼字對但第一個字沒大寫或句尾標點不對，得一半。
+ * notes：'spell'（拼錯或少字）、'cap'（第一個字要大寫）、'period'（句尾要句點）、'question'（問句要問號）。
+ */
+export function englishCredit(q, given) {
+  if (isBlank(given)) return { credit: 0, notes: [] };
+  const g = cleanEnglish(given);
+  const words = englishWords(g);
+  if (!words) return { credit: 0, notes: [] };
+  const hit = (q.answers || []).find((a) => englishWords(a) === words);
+  if (!hit) return { credit: 0, notes: ['spell'] };
+  if (!q.sentence) return { credit: 1, notes: [] };
+  const notes = [];
+  const first = g.match(/[A-Za-z]/);
+  if (!first || first[0] !== first[0].toUpperCase()) notes.push('cap');
+  const want = cleanEnglish(hit).slice(-1);
+  if (/[.?!]/.test(want) && g.slice(-1) !== want) notes.push(want === '?' ? 'question' : 'period');
+  return { credit: notes.length ? 0.5 : 1, notes };
+}
+
+/** 這一題拿幾分（0～1）和原因；數學和選擇題只有 1 或 0 */
+export function creditOf(q, given) {
+  if (q.lang === 'en' && q.type !== '選擇') return englishCredit(q, given);
+  return { credit: isCorrect(q, given) ? 1 : 0, notes: [] };
 }
 
 /** 正確答案要怎麼顯示 */
@@ -141,15 +198,16 @@ export function grade(session, level, { now = Date.now(), timeUp = false } = {})
       given,
       givenText: givenText(q, given),
       rightText: correctText(q),
-      ok: isCorrect(q, given),
+      ...gradeOne(q, given),
     };
   });
-  const score = items.filter((x) => x.ok).length;
+  // 英語句子可以有半分（只錯大寫或標點），總分可能是 7.5
+  const score = Math.round(items.reduce((s, x) => s + x.credit, 0) * 2) / 2;
   return {
     levelId: level.meta.id,
     score,
     total: items.length,
-    perfect: score === items.length,
+    perfect: items.every((x) => x.ok),
     used,
     limit: session.limit,
     timeUp: !!timeUp,
@@ -159,7 +217,12 @@ export function grade(session, level, { now = Date.now(), timeUp = false } = {})
   };
 }
 
-/** 錯題重練要練哪幾題（題目位置） */
+function gradeOne(q, given) {
+  const { credit, notes } = creditOf(q, given);
+  return { credit, notes, ok: credit === 1 };
+}
+
+/** 錯題重練要練哪幾題（題目位置；半對的也要練） */
 export const wrongIndices = (result) => result.items.filter((x) => !x.ok).map((x) => x.index);
 
 /** 存檔或送到後台用的精簡版（不含題目全文） */
@@ -179,7 +242,7 @@ export function resultSummary(result, level) {
     timeUp: result.timeUp,
     retry: result.retry,
     blanks: result.items.filter((x) => isBlank(x.given)).length,
-    items: result.items.map((x) => ({ n: x.no, ok: x.ok, given: x.givenText, right: x.rightText })),
+    items: result.items.map((x) => ({ n: x.no, ok: x.ok, ...(x.credit > 0 && x.credit < 1 ? { half: true } : {}), given: x.givenText, right: x.rightText })),
   };
 }
 

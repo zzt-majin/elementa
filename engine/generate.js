@@ -6,8 +6,10 @@
 import { createRng, newSeed } from './rng.js';
 import { MATH_TYPES, isRetry } from './generators/math.js';
 import { MATH_G4_TYPES } from './generators/math-g4.js'; // 四上數學（代號 g4- 開頭）
+import { ENGLISH_TYPES } from './generators/english.js'; // 英語（代號 en- 開頭，題目從教材檔來）
+import { bankCards, bankOf } from './words.js';
 
-const REGISTRY = { ...MATH_TYPES, ...MATH_G4_TYPES };
+const REGISTRY = { ...MATH_TYPES, ...MATH_G4_TYPES, ...ENGLISH_TYPES };
 
 /** 之後國語、英語的產生器用這個加進來 */
 export function registerTypes(types) { Object.assign(REGISTRY, types); }
@@ -17,7 +19,20 @@ export const typeNames = () => Object.keys(REGISTRY);
 const BAD = /NaN|undefined|null|Infinity|\[object/;
 
 /** 判斷兩題是不是同一題：題目＋選項都一樣才算（有些題型題目文字固定，只有選項不同） */
-export const questionKey = (q) => q.text + '|' + (q.options || []).map((o) => o.text).sort().join('|');
+// 聽寫題的題目文字都一樣，所以也比要唸的字和圖
+export const questionKey = (q) => q.text + '|' + (q.speech || '') + '|' + (q.image || '') + '|' + (q.options || []).map((o) => o.text).sort().join('|');
+
+/**
+ * 這一關出題用的參數：科目的數字範圍 cfg，再加上這一關的教材檔（關卡檔 bank 欄位，cfg.banks 裡找）。
+ * 英語關卡寫了 bank 卻找不到教材檔時，丟出錯誤（畫面會列出來）。
+ */
+export function levelCfg(level, cfg = {}) {
+  const id = bankOf(level);
+  if (!id) return cfg;
+  const bank = cfg?.banks?.[id];
+  if (!bank) throw new Error('讀不到教材檔 ' + id + '.md');
+  return { ...cfg, bank };
+}
 
 /** 檢查一題；有問題回傳說明，沒問題回傳空字串 */
 export function checkQuestion(q) {
@@ -86,7 +101,11 @@ export function buildQuestions(make, rng, cfg = {}) {
 export function materialize(level, { seed = newSeed(), cfg = {} } = {}) {
   if (!level?.meta?.make) return level;
   const rng = createRng(seed);
-  return { ...level, seed, questions: buildQuestions(level.meta.make, rng, cfg) };
+  const c = levelCfg(level, cfg);
+  const out = { ...level, seed, questions: buildQuestions(level.meta.make, rng, c) };
+  // 英語：學習卡從教材檔來（關卡檔 cards 欄位寫要哪幾段，例如 places, activities）
+  if (c.bank && level.meta.cards) out.cards = bankCards(c.bank, level.meta.cards, c).map((x, i) => ({ ...x, no: String(i + 1) }));
+  return out;
 }
 
 /**
@@ -107,14 +126,18 @@ export function mixLevel(units, { count, seed = newSeed(), cfg = {}, meta = {} }
   const seen = new Set();
   chosen.forEach((u, i) => {
     // 這個單元所有題型，照關卡裡的題數當權重，輪著抽，避免同一種題型擠在一起
+    // 每個題型記住它那一關的參數（英語每一關可以有自己的教材檔）
     const pool = [];
-    for (const l of u.levels) for (const { type, count: c } of parseMake(l.meta.make || '')) for (let k = 0; k < c; k++) pool.push(type);
+    for (const l of u.levels) {
+      const lc = levelCfg(l, cfg);
+      for (const { type, count: c } of parseMake(l.meta.make || '')) for (let k = 0; k < c; k++) pool.push({ type, lc });
+    }
     let bag = [];
     for (let n = 0; n < per[i]; n++) {
       if (!bag.length) bag = rng.shuffle(pool);
-      const type = bag.pop();
-      let q = generateQuestion(type, rng, cfg);
-      for (let t = 0; t < 20 && seen.has(questionKey(q)); t++) q = generateQuestion(type, rng, cfg);
+      const { type, lc } = bag.pop();
+      let q = generateQuestion(type, rng, lc);
+      for (let t = 0; t < 20 && seen.has(questionKey(q)); t++) q = generateQuestion(type, rng, lc);
       seen.add(questionKey(q));
       questions.push({ ...q, unitName: u.unit });
     }

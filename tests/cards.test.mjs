@@ -161,7 +161,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const { levels: raw } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
 // 有 make 的關卡先出一份題目（每次測驗都會出新的；這裡用固定種子方便重現）
 const genCfg = JSON.parse(await readFile(root + 'config/generators/math.json', 'utf8'));
-const levels = raw.map((l, i) => materialize(l, { seed: 1000 + i, cfg: genCfg }));
+const levels = raw.filter((l) => l.meta.subject === '數學').map((l, i) => materialize(l, { seed: 1000 + i, cfg: genCfg })); // 英語卡在 tests/english.test.mjs
 for (const l of levels) {
   test(`關卡 ${l.meta.id} 做得出卡片`, () => {
     const cards = buildCards(l);

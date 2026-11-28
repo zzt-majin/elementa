@@ -107,8 +107,8 @@ const limits = (q) => {
   return '';
 };
 
-// 四上的題型（g4- 開頭）數字範圍不同，在 tests/generate-g4.test.mjs 另外檢查
-const sixTypes = typeNames().filter((t) => !t.startsWith('g4-'));
+// 四上的題型（g4- 開頭）數字範圍不同，在 tests/generate-g4.test.mjs 另外檢查；英語（en- 開頭）在 tests/english.test.mjs
+const sixTypes = typeNames().filter((t) => !t.startsWith('g4-') && !t.startsWith('en-'));
 for (const type of sixTypes) {
   test(`${type}：${N} 題都合格、在範圍內、答案重算一致`, () => {
     const rng = createRng(12345);
@@ -227,7 +227,8 @@ test('make：寫法和題數', () => {
   assert.throws(() => parseMake('dec div*2'));
 });
 
-const { levels, errors } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
+const { levels: allLevels, errors } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
+const levels = allLevels.filter((l) => l.meta.subject === '數學'); // 英語關卡在 tests/english.test.mjs
 test('關卡檔：都讀得到，題型都存在', () => {
   assert.deepEqual(errors, []);
   for (const l of levels) {

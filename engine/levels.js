@@ -3,7 +3,7 @@
 // 關卡檔可以手寫題目，也可以只寫 make（出題模組的題型和題數，見 engine/generate.js），
 // 瀏覽器和 Node 都能用。格式見 docs/關卡檔格式.md。
 
-const FIELD_NAMES = ['題型', '題目', '答案', '單位', '技巧', '語音'];
+const FIELD_NAMES = ['題型', '題目', '答案', '單位', '技巧', '語音', '圖片'];
 
 /** 把一個關卡檔的文字解析成 { meta, questions } */
 export function parseLevel(text) {
@@ -29,7 +29,7 @@ function parseQuestions(body) {
   const blocks = body.split(/^##\s+/m).slice(1);
   return blocks.map((block) => {
     const lines = block.split('\n');
-    const q = { no: lines.shift().trim(), type: '', text: '', options: [], answers: [], unit: '', tip: '', speech: '' };
+    const q = { no: lines.shift().trim(), type: '', text: '', options: [], answers: [], unit: '', tip: '', speech: '', image: '' };
     let current = null; // 正在接續多行的欄位
     for (const raw of lines) {
       const line = raw.replace(/\s+$/, '');
@@ -59,6 +59,7 @@ function setField(q, field, value) {
   else if (field === '單位') q.unit = value;
   else if (field === '技巧') q.tip = value;
   else if (field === '語音') q.speech = value;
+  else if (field === '圖片') q.image = value; // 圖片網址（相對路徑，例如 assets/pics/en/night-market.svg）
 }
 
 function appendField(q, field, value) {

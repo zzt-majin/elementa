@@ -29,7 +29,9 @@ import { createPetVoice } from './pet-voice.js';
 import { createQuizUI } from './quiz-ui.js';
 import { createCardsUI } from './cards-ui.js';
 import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
-import { materialize, mixLevel } from '../engine/generate.js';
+import { materialize, mixLevel, levelCfg } from '../engine/generate.js';
+import { loadBanks } from '../engine/words.js';
+import { createSpeaker } from './speech.js';
 import { raceSettings, rulesFor, raceId, poolState, buildPool, createDrawer, raceSummary, shouldRecord } from '../games/quiz-race/race.js';
 import { createRaceUI } from '../games/quiz-race/race-ui.js';
 import { economyRules, computeWallet, createLedger, newEntryId, previewEarn, canAfford } from '../engine/economy.js';
@@ -64,8 +66,8 @@ async function getJSON(url) {
  *   公路（世界設定第 5 步）：姐妹的群島放在 world.json 的 road.offset，蓋好公路才能走過去；
  *     在她的島上寫測驗、看學習卡、玩搶答賽都不記成績、不給歐巴幣和寶石，也不呼叫 onResult。
  */
-export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', hooks = {} }) {
-  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig, musicLoaded, calendarConfig, petsConfig] = await Promise.all([
+export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoot, configPath = 'config/', levelsPath = 'content/levels/', wordsPath = 'content/words/', hooks = {} }) {
+  const [subjects, theme, world, text, quizConfig, cardsConfig, mixConfig, gameConfig, economyConfig, familyConfig, musicLoaded, calendarConfig, petsConfig, speechConfig] = await Promise.all([
     ...['subjects', 'theme', 'world', 'text'].map((n) => getJSON(configPath + n + '.json')),
     getJSON(configPath + 'quiz.json').catch(() => ({})), // 沒有 quiz.json 就用引擎預設
     getJSON(configPath + 'cards.json').catch(() => ({})), // 沒有 cards.json 就用引擎預設
@@ -76,10 +78,18 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     getJSON(configPath + 'music.json').catch(() => ({})), // 背景音樂的歌單和時鐘的時區
     getJSON(configPath + 'calendar.json').catch(() => ({})), // 左上角的日曆：國定假日、每天的名人和紀念日放哪
     getJSON(configPath + 'pets.json').catch(() => ({})), // 商店的寵物：價錢、每天的費用
+    getJSON(configPath + 'speech.json').catch(() => ({})), // 英語朗讀：語言、速度
   ]);
-  const presets = (Array.isArray(mixConfig?.presets) ? mixConfig.presets : [])
+  // 綜合練習的題數和限時：mix.json 的 bySubject 有這一科就用它（英語 4 題 4 分…），沒有就用 presets
+  const cleanPresets = (list) => (Array.isArray(list) ? list : [])
     .map((p) => ({ count: Math.round(Number(p.count)), minutes: Number(p.minutes) }))
     .filter((p) => p.count >= 1 && p.count <= 60 && p.minutes > 0);
+  const basePresets = cleanPresets(mixConfig?.presets);
+  const presetsFor = (subject) => {
+    const own = cleanPresets(mixConfig?.bySubject?.[subject]);
+    return own.length ? own : basePresets;
+  };
+  const speaker = createSpeaker(speechConfig || {});
   const settings = quizSettings(quizConfig);
   const cardConf = cardSettings(cardsConfig);
   const raceConf = raceSettings(gameConfig);
@@ -110,6 +120,11 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     await Promise.all(subjects.islands.filter((i) => need.has(i.subject)).map(async (i) => {
       genCfg[i.subject] = await getJSON(configPath + 'generators/' + i.code + '.json').catch(() => ({}));
     }));
+    // 英語的教材檔（content/words/<關卡檔 bank 欄位>.md）：放進那一科的出題參數，出題和學習卡都讀它
+    const fetchText = async (url) => { const res = await fetch(url, { cache: 'no-cache' }); if (!res.ok) throw new Error(url + ' 讀不到（' + res.status + '）'); return res.text(); };
+    const b = await loadBanks(r.levels, wordsPath, fetchText);
+    loadErrors.push(...b.errors);
+    for (const subj of Object.keys(genCfg)) genCfg[subj] = { ...genCfg[subj], banks: b.banks };
     // 有 make 的關卡先出一份題目，題數、學習卡、搶答賽題庫才算得出來；每次開始測驗會再出新的
     for (const l of r.levels) {
       try { levels.push(materialize(l, { cfg: genCfg[l.meta.subject] })); } catch (err) { loadErrors.push({ file: l.file, message: err.message }); }
@@ -266,6 +281,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     ruleNote: () => (visitActivity ? '' : fill(RW().quizNote, { w: econ.wrongRates.length, coin: coinName(), ...econ.manyWrong })),
     refresh: (l) => freshen(l), // 「整關再挑戰」出新題目
     onOpenChange: overlayChange,
+    speaker,
     onResult(result, level) {
       // 在姐妹的島上：不記成績、不給歐巴幣和寶石、不送到試算表
       if (visitActivity) return { rewardText: visitResultText() };
@@ -284,13 +300,15 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const cardsUI = cardsRoot ? createCardsUI(cardsRoot, {
     text,
     settings: cardConf,
+    speaker,
     onOpenChange: overlayChange,
     onClose() { if (lastBuilding) openBuilding(lastBuilding.code, lastBuilding.kind, lastBuilding.visit); },
   }) : null;
-  const cardRule = () => {
+  // subject：科目；試算表沒填時照 config/cards.json 的 bySubject（英語一開始就打開）
+  const cardRule = (subject = '') => {
     let sheet = null;
     try { sheet = hooks.settingsOf?.(kid) || null; } catch (err) { console.error(err); }
-    return ruleFor(sheet, cardConf);
+    return ruleFor(sheet, cardConf, subject);
   };
 
   // 遊戲帳篷（搶答賽）：秒數、扣秒、題目來源照試算表「設定」（hooks.settingsOf），沒有就照 config/game.json
@@ -976,9 +994,9 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       // 從學習屋去寫測驗：交卷後回到學習屋，剛打開的學習卡馬上看得到
       // 從遊戲帳篷去寫測驗：交卷後回到帳篷，這一關的選擇題馬上放進題庫
       onStart: (l) => gate(visit, () => startQuiz(l, { backLabel: kind === 'house' ? text.cards.leave : kind === 'tent' ? text.race.leave : '' })),
-      mix: kind === 'tower' && presets.length ? mixExtra(def, info, visit) : null,
+      mix: kind === 'tower' && presetsFor(def.subject).length ? mixExtra(def, info, visit) : null,
       towerReward: kind === 'tower' && !visit ? towerReward(def) : null,
-      house: kind === 'house' && cardsUI ? houseExtra(code, visit) : null,
+      house: kind === 'house' && cardsUI ? houseExtra(code, visit, def.subject) : null,
       tent: kind === 'tent' && raceUI ? tentExtra(def, info, visit) : null,
       visitNote: visit ? visitNote() : '',
     }, () => (mode === 'walk' ? backToAll() : openIsland(code, visit))); // 走路模式按返回：回到小公主
@@ -997,16 +1015,16 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   }
   const visitResultText = () => fill(R().visitResult, { other: otherKid() || '', coin: econ.currencyName || '歐巴幣' });
 
-  function houseExtra(code, visit = false) {
+  function houseExtra(code, visit = false, subject = '') {
     // 在姐妹的島上：學習卡全部打開
-    const { rule, from } = visit ? { rule: 'always', from: 'visit' } : cardRule();
+    const { rule, from } = visit ? { rule: 'always', from: 'visit' } : cardRule(subject);
     const T = text.cards;
     return {
       ruleText: fill(T.ruleLine, { rule: T.ruleNames[rule] || rule }) + (from === 'visit' ? '' : from === 'sheet' ? T.ruleFromSheet : T.ruleFromDefault),
       state: (l) => cardState(l, progress.get(l.meta.kid, l.meta.id), rule),
       onCards: (l) => {
         // 打開前再檢查一次，避免清單畫好後規則變了
-        if (visit || cardState(l, progress.get(l.meta.kid, l.meta.id), cardRule().rule).open) gate(visit, () => cardsUI.open(safeFresh(l) || l)); // 每次看到新的例題
+        if (visit || cardState(l, progress.get(l.meta.kid, l.meta.id), cardRule(subject).rule).open) gate(visit, () => cardsUI.open(safeFresh(l) || l)); // 每次看到新的例題
         else openBuilding(code, 'house');
       },
     };
@@ -1103,7 +1121,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
             rules: r,
             poolLevels: p.levels.length,
             best: () => (visit ? null : progress.get(raceMeta.kid, id)),
-            makeDrawer: () => createDrawer(p.sources, { cfgOf: (s) => genCfg[s] || {} }),
+            makeDrawer: () => createDrawer(p.sources, { cfgOf: (s, src) => levelCfg({ meta: { bank: src?.bank } }, genCfg[s] || {}) }),
           });
         });
       },
@@ -1176,7 +1194,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     return {
       units,
       selected,
-      presets,
+      presets: presetsFor(def.subject),
       best: (p) => (visit ? null : progress.get(kid, mixId(sample, p.count))),
       coinLine: visit ? null : (p) => towerReward(def).coinLine(mixId(sample, p.count), p.count),
       toggle(u, on) {

@@ -39,3 +39,7 @@
   @keyframes card-in { from { transform: perspective(900px) rotateY(-14deg) scale(.98); opacity: .4; } to { transform: none; opacity: 1; } }
 }
 @media (max-width: 480px) { .card-opts { grid-template-columns: 1fr; } .study-card .prompt { font-size: 19px; } }
+
+/* 英語學習卡：正面的圖、卡片下面的喇叭 */
+.study-card .card-pic { display: block; width: 220px; max-width: 100%; aspect-ratio: 4 / 3; align-self: center; border-radius: 16px; }
+.cards-wrap .speak-row { justify-content: center; margin: 4px 0 0; }

@@ -1,8 +1,15 @@
 {
-  "_說明": "測驗塔的綜合練習。presets 是可以選的題數和限時（分鐘）；題目從勾選的單元平均抽，每次都是新題目。",
+  "_說明": "測驗塔的綜合練習。presets 是可以選的題數和限時（分鐘）；題目從勾選的單元平均抽，每次都是新題目。bySubject 是照科目另外設定的題數和限時（沒列的科目用 presets）。",
   "presets": [
     { "count": 4, "minutes": 8 },
     { "count": 10, "minutes": 15 },
     { "count": 15, "minutes": 20 }
-  ]
+  ],
+  "bySubject": {
+    "英語": [
+      { "count": 4, "minutes": 4 },
+      { "count": 10, "minutes": 8 },
+      { "count": 15, "minutes": 13 }
+    ]
+  }
 }

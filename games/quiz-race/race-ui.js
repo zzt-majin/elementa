@@ -151,6 +151,12 @@ export function createRaceUI(root, { text, settings, onResult, onClose, onOpenCh
 
     const card = el('section', 'quiz-card race-card');
     card.append(el('p', 'muted', fill(T.counter, { n: race.answered + 1 })), el('p', 'prompt', q.text));
+    if (q.image) { // 英語看圖選字
+      const img = el('img', 'quiz-pic');
+      img.src = q.image;
+      img.alt = '';
+      card.append(img);
+    }
     const opts = el('div', 'opts race-opts');
     q.options.forEach((o, k) => {
       const b = button(o.text, 'opt', () => pick(k));

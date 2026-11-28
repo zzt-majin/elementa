@@ -80,7 +80,7 @@ export function createHud(root, text) {
     if (st.reason === 'empty') return [el('p', 'tag', text.notReady)];
     if (st.open) {
       const row = el('div', 'lv-act');
-      const go = el('button', 'btn', fill(T.open, { n: l.questions.length }));
+      const go = el('button', 'btn', fill(T.open, { n: l.cards?.length || l.questions.length }));
       go.type = 'button';
       go.addEventListener('click', () => extra.house.onCards(l));
       row.append(go);

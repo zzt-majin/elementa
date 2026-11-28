@@ -1,0 +1,6 @@
+{
+  "_說明": "英語朗讀（world/speech.js，用瀏覽器內建的 Web Speech API）。lang 是要找的聲音語言；rate 是「🔊 聽」的速度，slowRate 是「🐢 慢慢聽」的速度（1 是正常）。",
+  "lang": "en-US",
+  "rate": 0.9,
+  "slowRate": 0.6
+}

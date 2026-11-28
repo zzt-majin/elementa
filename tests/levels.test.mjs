@@ -4,13 +4,21 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { loadLevels, kidsIn, levelsFor, timeLimitMinutes } from '../engine/levels.js';
 import { materialize } from '../engine/generate.js';
+import { loadBanks } from '../engine/words.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const { levels: raw, errors } = await loadLevels(root + 'content/levels', (p) => readFile(p, 'utf8'));
 // 有 make 的關卡先出一份題目（每次測驗都會出新的；這裡用固定種子方便重現）
-const genCfg = JSON.parse(await readFile(root + 'config/generators/math.json', 'utf8'));
-const levels = raw.map((l, i) => materialize(l, { seed: 1000 + i, cfg: genCfg }));
-let problems = errors.map((e) => `${e.file}: ${e.message}`);
+// 出題參數照科目讀 config/generators/<島的代號>.json，英語再加上教材檔（content/words/）
+const islands = JSON.parse(await readFile(root + 'config/subjects.json', 'utf8')).islands;
+const { banks, errors: bankErrors } = await loadBanks(raw, root + 'content/words', (p) => readFile(p, 'utf8'));
+const genCfg = {};
+for (const i of islands) {
+  try { genCfg[i.subject] = JSON.parse(await readFile(root + 'config/generators/' + i.code + '.json', 'utf8')); } catch { genCfg[i.subject] = {}; }
+  genCfg[i.subject].banks = banks;
+}
+const levels = raw.map((l, i) => materialize(l, { seed: 1000 + i, cfg: genCfg[l.meta.subject] || {} }));
+let problems = [...errors, ...bankErrors].map((e) => `${e.file}: ${e.message}`);
 
 for (const l of levels) {
   for (const k of ['id', 'kid', 'grade', 'subject', 'name']) if (!l.meta[k]) problems.push(`${l.file}: 缺 ${k}`);
@@ -29,9 +37,10 @@ for (const l of levels) {
 
 console.log(`關卡 ${levels.length} 個，題目 ${levels.reduce((s, l) => s + l.questions.length, 0)} 題`);
 console.log('小孩：', kidsIn(levels).join('、'));
-for (const kid of kidsIn(levels)) {
-  const r = levelsFor(levels, { kid, subject: '數學' });
-  console.log(`${kid} 數學：${r.count} 關`, r.groups.map((g) => `${g.title}(${g.items.map((i) => i.meta.name + '/' + timeLimitMinutes(i) + '分').join('、')})`).join('；'));
+for (const kid of kidsIn(levels)) for (const subject of ['數學', '英語']) {
+  const r = levelsFor(levels, { kid, subject });
+  if (!r.count) continue;
+  console.log(`${kid} ${subject}：${r.count} 關`, r.groups.map((g) => `${g.title}(${g.items.map((i) => i.meta.name + '/' + timeLimitMinutes(i) + '分').join('、')})`).join('；'));
 }
 if (problems.length) {
   console.log('問題：\n' + problems.join('\n'));

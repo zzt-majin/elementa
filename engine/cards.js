@@ -9,6 +9,7 @@ export const RULES = ['always', 'afterQuiz', 'afterPerfect'];
 
 export const CARD_DEFAULTS = {
   defaultRule: 'afterQuiz',
+  bySubject: {}, // 照科目的預設，例如 { 英語: 'always' }（試算表沒填時用）
   sheetValues: { '一開始': 'always', '測驗後': 'afterQuiz', '全對後': 'afterPerfect' },
   showOptions: true,
   shuffle: false,
@@ -16,9 +17,12 @@ export const CARD_DEFAULTS = {
 
 /** 讀 config/cards.json；亂填或沒填的欄位用預設值 */
 export function cardSettings(raw = {}) {
-  const s = { ...CARD_DEFAULTS, sheetValues: { ...CARD_DEFAULTS.sheetValues } };
+  const s = { ...CARD_DEFAULTS, sheetValues: { ...CARD_DEFAULTS.sheetValues }, bySubject: {} };
   if (!raw || typeof raw !== 'object') return s;
   if (RULES.includes(raw.defaultRule)) s.defaultRule = raw.defaultRule;
+  if (raw.bySubject && typeof raw.bySubject === 'object') {
+    for (const [k, v] of Object.entries(raw.bySubject)) if (RULES.includes(v)) s.bySubject[String(k).trim()] = v;
+  }
   if (raw.sheetValues && typeof raw.sheetValues === 'object') {
     const map = {};
     for (const [k, v] of Object.entries(raw.sheetValues)) if (RULES.includes(v)) map[String(k).trim()] = v;
@@ -32,12 +36,14 @@ export function cardSettings(raw = {}) {
 /**
  * 這個小孩現在用哪一種開放時機。
  * sheet：account.settingsOf(kid) 的回傳（{ cards: '測驗後', … }），沒登入過是 null。
+ * subject：科目（例如「英語」）；試算表沒填時，先看 config/cards.json 的 bySubject，再用 defaultRule。
  * 回傳 { rule, from }：from 是 'sheet'（照試算表）或 'default'（照 config/cards.json）。
  */
-export function ruleFor(sheet, settings = CARD_DEFAULTS) {
+export function ruleFor(sheet, settings = CARD_DEFAULTS, subject = '') {
   const v = sheet && typeof sheet === 'object' ? String(sheet.cards ?? '').trim() : '';
   const rule = settings.sheetValues[v];
-  return rule ? { rule, from: 'sheet' } : { rule: settings.defaultRule, from: 'default' };
+  if (rule) return { rule, from: 'sheet' };
+  return { rule: settings.bySubject?.[subject] || settings.defaultRule, from: 'default' };
 }
 
 /**
@@ -60,8 +66,15 @@ export function cardState(level, record, rule) {
 /**
  * 一關的學習卡：每一題一張。
  * 正面是題目（選擇題附選項），背面是正確答案和解題技巧。
+ * 關卡有 cards（英語：從教材檔來，見 engine/words.js 的 bankCards）就用它：正面圖＋英文，背面中文＋例句。
  */
 export function buildCards(level, settings = CARD_DEFAULTS) {
+  if (Array.isArray(level?.cards) && level.cards.length) {
+    return level.cards.map((c, i) => ({
+      index: i, no: c.no || String(i + 1), front: c.front, options: [], answer: c.answer || '', tip: c.tip || '',
+      speech: c.speech || '', image: c.image || '', lang: 'en',
+    }));
+  }
   return (level?.questions || []).map((q, i) => ({
     index: i,
     no: q.no,
@@ -70,6 +83,7 @@ export function buildCards(level, settings = CARD_DEFAULTS) {
     answer: correctText(q),
     tip: q.tip,
     speech: q.speech || '',
+    image: q.image || '',
   }));
 }
 

@@ -1,0 +1,4 @@
+{
+  "_說明": "英語出題的參數。題目內容在教材檔（content/words/*.md，關卡檔的 bank 欄位指定）；picPath 是教材檔 pic= 圖檔放哪個資料夾（.svg）。",
+  "picPath": "assets/pics/en/"
+}

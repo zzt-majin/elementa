@@ -89,7 +89,7 @@ export function choiceSources(level) {
     for (const { type, count } of parts) {
       if (!qs.some((q) => q.gen === type && q.type === '選擇')) continue;
       const had = out.find((x) => x.type === type);
-      if (had) had.weight += count; else out.push({ kind: 'gen', type, weight: count, subject });
+      if (had) had.weight += count; else out.push({ kind: 'gen', type, weight: count, subject, ...(level.meta.bank ? { bank: level.meta.bank } : {}) });
     }
     return out;
   }
@@ -117,7 +117,7 @@ export function buildPool(levels, recordOf, rule) {
 /**
  * 抽題機：題型照權重放進袋子，抽完一袋再洗下一袋，所以每種題型輪得到；
  * 同一場不出一模一樣的題目（手寫的題目一輪抽完才會再出現）。
- * cfgOf(subject)：那一科的數字範圍（config/generators/*.json）。
+ * cfgOf(subject, source)：那一科的數字範圍（config/generators/*.json）；英語的 source.bank 是教材檔代號。
  */
 export function createDrawer(sources, { seed = newSeed(), cfgOf = () => ({}) } = {}) {
   if (!sources.length) throw new Error('題庫是空的');
@@ -139,7 +139,7 @@ export function createDrawer(sources, { seed = newSeed(), cfgOf = () => ({}) } =
         if (!bag.length) refill();
         const s = bag.pop();
         const q = s.kind === 'gen'
-          ? generateQuestion(s.type, rng, cfgOf(s.subject))
+          ? generateQuestion(s.type, rng, cfgOf(s.subject, s))
           : { ...s.q, options: rng.shuffle(s.q.options) };
         if (q.type !== '選擇') continue;
         const key = questionKey(q);

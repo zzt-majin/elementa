@@ -5,6 +5,7 @@ import {
   createSession, setAnswer, goTo, answered, blankCount, secondsLeft,
   grade, wrongIndices, createCountdown, mmss,
 } from '../engine/quiz.js';
+import { speakButtons } from './speech.js';
 
 /**
  * root：放測驗畫面的元素（index.html 的 #quiz）。
@@ -13,8 +14,9 @@ import {
  * onOpenChange(open)：測驗畫面打開或關上時呼叫（3D 場景可以趁這時暫停）。
  * ruleNote()：回傳作答畫面最上面要寫的規則（歐巴幣怎麼拿），空字串就不顯示；錯題重練不顯示。
  * refresh(level)：按「整關再挑戰」時呼叫，回傳同一關的新題目（出題模組用）；不給就用原來的題目。
+ * speaker：world/speech.js 的 createSpeaker()；題目有「語音」時顯示喇叭按鈕（聽寫題只有喇叭，不顯示英文）。
  */
-export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange, refresh, ruleNote }) {
+export function createQuizUI(root, { text, settings, onResult, onClose, onOpenChange, refresh, ruleNote, speaker }) {
   const T = text.quiz;
   const fill = (s, vals) => String(s).replace(/\{(\w+)\}/g, (_, k) => String(vals[k] ?? ''));
   let level = null;
@@ -108,6 +110,8 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
 
     const card = el('section', 'quiz-card');
     card.append(el('p', 'muted', fill(T.counter, { n: session.current + 1, total: n })), el('p', 'prompt', q.text));
+    if (q.image) card.append(picture(q.image, 'quiz-pic'));
+    if (q.speech) card.append(speakButtons(speaker, q.speech, text.speech || {}, { again: !!q.speechOnly }));
     let input = null;
     if (q.type === '選擇') {
       const opts = el('div', 'opts');
@@ -124,8 +128,17 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
       input.id = 'quiz-answer';
       label.htmlFor = input.id;
       input.autocomplete = 'off';
-      input.inputMode = 'decimal';
       input.spellcheck = false;
+      if (q.lang === 'en') {
+        // 英語：一般鍵盤，不要自動大寫、自動修正（判分要看小孩自己有沒有大寫）
+        input.inputMode = 'text';
+        input.lang = 'en';
+        input.className = 'en';
+        input.setAttribute('autocapitalize', 'off');
+        input.setAttribute('autocorrect', 'off');
+      } else {
+        input.inputMode = 'decimal';
+      }
       input.value = session.answers[qi] ?? '';
       input.addEventListener('input', () => {
         setAnswer(session, input.value);
@@ -161,6 +174,14 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
     // 提醒（還有幾題沒寫、確定要重新開始嗎…）放在按鈕下面，按了馬上看得到
     show([bar, ...(noteEl ? [noteEl] : []), warnBox, dots, card, nav]);
     if (focus && input) input.focus();
+  }
+
+  function picture(src, cls) {
+    const img = el('img', cls);
+    img.src = src;
+    img.alt = T.picAlt || '';
+    img.decoding = 'async';
+    return img;
   }
 
   function focusOption(k) {
@@ -234,15 +255,23 @@ export function createQuizUI(root, { text, settings, onResult, onClose, onOpenCh
 
     const list = el('ol', 'review');
     r.items.forEach((x, i) => {
-      const li = el('li', x.ok ? 'ok' : 'bad');
-      li.append(el('h3', '', (i + 1) + '. ' + x.question.text));
+      const half = x.credit > 0 && x.credit < 1;
+      const li = el('li', x.ok ? 'ok' : half ? 'half' : 'bad');
+      const h = el('h3', '', (i + 1) + '. ' + x.question.text);
+      if (half) h.append(el('span', 'half-tag', T.halfTag));
+      li.append(h);
+      if (x.question.image) li.append(picture(x.question.image, 'review-pic'));
       const ans = el('p', 'ans');
-      ans.append(T.yourAnswer, el('b', x.ok ? 'g' : 'r', x.givenText || T.blank));
+      ans.append(T.yourAnswer, el('b', x.ok ? 'g' : half ? 'o' : 'r', x.givenText || T.blank));
       if (x.ok) ans.append('　' + T.correct);
       else ans.append('　' + T.rightAnswer, el('b', 'g', x.rightText));
+      li.append(ans);
+      // 英語句子：說清楚哪裡不對（只錯大寫或標點得一半）
+      const notes = (x.notes || []).map((k) => T.notes?.[k]).filter(Boolean);
+      if (notes.length) li.append(el('p', 'note', notes.join(' ')));
       const tip = el('p', 'tip');
       tip.append(el('strong', '', T.tip), '　' + x.question.tip);
-      li.append(ans, tip);
+      li.append(tip);
       list.append(li);
     });
 
