@@ -7,7 +7,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const INK = '#3b2a30';
 const LEGS = 'M36 64v20M48 66v18M76 66v18M88 64v20';
 
-/** 三種狗的畫法（自己畫的，viewBox 0 0 120 96）；顏色照 config/pets.json 的 colors */
+/** 寵物的畫法（自己畫的，viewBox 0 0 120 96）：四種狗和貓；顏色照 config/pets.json 的 colors */
 function dogShapes(look, c) {
   const line = { stroke: INK, 'stroke-width': 3, 'stroke-linejoin': 'round' };
   const legs = (inner) => [
@@ -40,6 +40,40 @@ function dogShapes(look, c) {
       ['circle', { cx: 26, cy: 35, r: 3, fill: c.eye, stroke: INK, 'stroke-width': 1.5 }],
     ];
   }
+  if (look === 'lab') {
+    // 拉不拉多：壯壯的身體、軟軟垂下來的耳朵、粗尾巴
+    return [
+      ['path', { d: 'M94 46c10 0 18-6 20-14-8 0-14 4-20 8', fill: c.body, ...line }],
+      ['ellipse', { cx: 62, cy: 54, rx: 36, ry: 19, fill: c.body, ...line }],
+      ['path', { d: 'M36 62c12 7 40 7 52 0-4 8-46 9-52 0z', fill: c.light }],
+      ...legs(c.body),
+      ['circle', { cx: 30, cy: 38, r: 18, fill: c.body, ...line }],
+      ['path', { d: 'M38 24c8 2 10 14 6 22-6-2-8-12-6-22z', fill: c.dark, ...line }],
+      ['path', { d: 'M13 40c-5 1-6 6-3 8s11 1 13-2', fill: c.light, ...line }],
+      ['circle', { cx: 10, cy: 43, r: 2.8, fill: INK }],
+      ['circle', { cx: 25, cy: 34, r: 2.6, fill: c.eye }],
+    ];
+  }
+  if (look === 'cat') {
+    // 虎斑貓：小小的身體、尖耳朵、條紋、往上彎的尾巴、鬍鬚
+    const thin = { stroke: INK, 'stroke-width': 1.6, 'stroke-linecap': 'round', fill: 'none' };
+    const catLegs = 'M42 64v18M52 66v16M74 66v16M84 64v18';
+    return [
+      ['path', { d: 'M92 52c14-2 20-14 16-28-2-4-6-4-6 0 2 10-2 18-12 20', fill: c.body, ...line }],
+      ['ellipse', { cx: 64, cy: 56, rx: 29, ry: 15, fill: c.body, ...line }],
+      ['path', { d: 'M56 42l3 10M66 41l1 11M76 43l-1 10', stroke: c.dark, 'stroke-width': 4, 'stroke-linecap': 'round', fill: 'none' }],
+      ['path', { d: catLegs, stroke: INK, 'stroke-width': 6, 'stroke-linecap': 'round', fill: 'none' }],
+      ['path', { d: catLegs, stroke: c.body, 'stroke-width': 3, 'stroke-linecap': 'round', fill: 'none' }],
+      ['path', { d: 'M18 30l-1-18 12 10M34 22l10-10 0 18', fill: c.body, ...line }],
+      ['circle', { cx: 30, cy: 38, r: 15, fill: c.body, ...line }],
+      ['path', { d: 'M27 25l1 6M33 25l-1 6', stroke: c.dark, 'stroke-width': 3, 'stroke-linecap': 'round' }],
+      ['ellipse', { cx: 22, cy: 44, rx: 8, ry: 6, fill: c.light }],
+      ['path', { d: 'M18 41l3 2 3-2z', fill: '#e88a8a', stroke: INK, 'stroke-width': 1 }],
+      ['ellipse', { cx: 25, cy: 34, rx: 2.4, ry: 3.2, fill: c.eye, stroke: INK, 'stroke-width': 1 }],
+      ['ellipse', { cx: 36, cy: 34, rx: 2.4, ry: 3.2, fill: c.eye, stroke: INK, 'stroke-width': 1 }],
+      ['path', { d: 'M14 44l-10-2M14 47l-10 2M30 45l9-2M30 48l9 2', ...thin }],
+    ];
+  }
   return [
     ['path', { d: 'M92 40c10-6 14-16 10-22-6 4-8 10-10 14', fill: c.body, ...line }],
     ['ellipse', { cx: 62, cy: 54, rx: 34, ry: 17, fill: c.body, ...line }],
@@ -52,8 +86,8 @@ function dogShapes(look, c) {
   ];
 }
 
-/** 一隻狗的圖（SVG）：breed = petRules() 的一種 */
-export function dogPicture(breed, w = 96) {
+/** 一隻寵物的圖（SVG）：breed = petRules() 的一種 */
+export function petPicture(breed, w = 96) {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 120 96');
   svg.setAttribute('width', String(w));
@@ -96,7 +130,8 @@ const cut = (s, max) => Array.from(s).slice(0, max).join('');
 /**
  * button：時鐘左邊的 #shop；root：#hud（確認視窗放這裡）；hud：createHud()；text：config/text.json 的 shop。
  * 回傳 { show(state, onBack) }：
- *   state = { kid, coins, coin（歐巴幣的名字）, breeds, owned, shopState(breed), fee(breed), totalFee, hungry, nameMax, onBuy(breed, name) }
+ *   state = { kid, coins, coin（歐巴幣的名字）, breeds, owned, shopState(breed), fee(breed), totalFee, hungry, nameMax, maxOwned, onBuy(breed, name) }
+ *   showGift(gift, onClaim(name), onLater)：送寵物的視窗；gift = { breed, coin, fee, nameMax, maxOwned }
  */
 export function createShop({ button, root, hud, text = {}, onOpen = () => {} }) {
   if (button) {
@@ -116,12 +151,15 @@ export function createShop({ button, root, hud, text = {}, onOpen = () => {} }) 
     nodes.push(tabs, el('p', 'shop-intro', T.intro));
     if (st.hungry && st.owned.length) nodes.push(el('p', 'shop-hungry', fill(T.hungry, { coin })));
     if (st.totalFee > 0) nodes.push(el('p', 'muted', fill(T.total, { n: st.totalFee, coin })));
+    if (st.kid) nodes.push(el('p', 'muted pet-max', fill(T.maxLine, { max: st.maxOwned, n: st.owned.filter((p) => !p.gift).length })));
+    const gifts = st.owned.filter((p) => p.gift);
+    for (const g of gifts) nodes.push(el('p', 'pet-gift-line', fill(T.giftOwned, { breed: g.breed, name: g.name })));
     const list = el('div', 'pet-list');
     for (const b of st.breeds) {
       const s = st.shopState(b);
       const row = el('section', 'pet-row' + (s.state === 'owned' ? ' owned' : s.state === 'ready' ? '' : ' dim'));
       const pic = el('div', 'pet-pic');
-      pic.append(dogPicture(b, 92));
+      pic.append(petPicture(b, 92));
       const info = el('div', 'pet-info');
       info.append(el('b', 'pet-name', b.name), el('span', 'pet-blurb', b.blurb), el('span', 'pet-fee', fill(T.feeLine, { fee: st.fee(b), coin })));
       const act = el('div', 'pet-act');
@@ -135,6 +173,7 @@ export function createShop({ button, root, hud, text = {}, onOpen = () => {} }) 
         act.append(go);
         if (s.state === 'short') act.append(el('span', 'pet-short', fill(T.short, { n: s.short, coin })));
         if (s.state === 'locked') act.append(el('span', 'pet-short', T.locked));
+        if (s.state === 'full') act.append(el('span', 'pet-short', fill(T.full, { max: st.maxOwned })));
       }
       row.append(pic, info, act);
       list.append(row);
@@ -148,22 +187,58 @@ export function createShop({ button, root, hud, text = {}, onOpen = () => {} }) 
   function confirmBuy(st, b) {
     const T = text;
     const coin = st.coin;
-    const max = st.nameMax;
     const fee = st.fee(b);
-    root.querySelector('.intro-back')?.remove();
-    const back = el('div', 'intro-back');
-    const box = el('section', 'intro pet-confirm');
-    box.setAttribute('role', 'dialog');
-    box.setAttribute('aria-modal', 'true');
-    box.setAttribute('aria-label', fill(T.confirmTitle, { breed: b.name }));
-    const pic = el('div', 'pet-pic big');
-    pic.append(dogPicture(b, 132));
+    // 「購買後每天會自動扣 10 歐巴幣作為…」：把數字標粗
     const lead = el('p', 'intro-lead');
-    // 「購買後每天會自動扣 10 歐巴幣作為…」：把數字標紅
     const parts = String(T.confirmBody || '').split('{fee}');
     lead.append(fill(parts[0], { coin }));
     if (parts.length > 1) { lead.append(el('b', '', ' ' + fee + ' ')); lead.append(fill(parts.slice(1).join(''), { coin })); }
-    const when = el('p', 'pet-when', fill(T.confirmWhen, { coin }));
+    nameDialog({
+      cls: 'pet-confirm',
+      breed: b,
+      title: fill(T.confirmTitle, { breed: b.name }),
+      body: [lead, el('p', 'pet-when', fill(T.confirmWhen, { coin }))],
+      chips: [fill(T.chipPrice, { price: b.price, coin }), fill(T.chipAfter, { have: st.coins, after: st.coins - b.price }), fill(T.chipFee, { fee })],
+      max: st.nameMax,
+      okText: T.ok,
+      cancelText: T.cancel,
+      onOk: (name) => st.onBuy(b, name),
+    });
+  }
+
+  /** 送寵物：「送你一隻臺灣土狗！」取好名字按「領取」才拿到；「等一下再領」關掉，下次打開網站再問 */
+  function showGift(g, onClaim, onLater = () => {}) {
+    const T = text;
+    const b = g.breed;
+    nameDialog({
+      cls: 'pet-confirm pet-gift',
+      breed: b,
+      title: fill(T.giftTitle, { breed: b.name }),
+      body: [
+        el('p', 'intro-lead', fill(T.giftBody, { coin: g.coin, max: g.maxOwned })),
+        el('p', 'pet-when', fill(T.giftWhen, { coin: g.coin, fee: g.fee })),
+        el('p', 'muted pet-later-note', T.giftLaterNote),
+      ],
+      chips: [fill(T.chipFee, { fee: g.fee })],
+      max: g.nameMax,
+      okText: T.giftOk,
+      cancelText: T.giftLater,
+      onOk: onClaim,
+      onCancel: onLater,
+    });
+  }
+
+  /** 共用的視窗：寵物的圖、標題、說明、取名字、小標籤、兩個按鈕 */
+  function nameDialog({ cls, breed, title, body, chips, max, okText, cancelText, onOk, onCancel = () => {} }) {
+    const T = text;
+    root.querySelector('.intro-back')?.remove();
+    const back = el('div', 'intro-back');
+    const box = el('section', 'intro ' + cls);
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', title);
+    const pic = el('div', 'pet-pic big');
+    pic.append(petPicture(breed, 132));
     const label = el('label', 'pet-name-field');
     const cap = el('span', 'pet-name-cap', fill(T.nameLabel, { max }));
     const input = document.createElement('input');
@@ -174,20 +249,16 @@ export function createShop({ button, root, hud, text = {}, onOpen = () => {} }) 
     const counter = el('span', 'pet-name-count', fill(T.nameCount, { n: 0, max }));
     counter.id = 'pet-name-count';
     label.append(cap, input, counter);
-    const chips = el('div', 'pet-chips');
-    chips.append(
-      el('span', 'pet-chip', fill(T.chipPrice, { price: b.price, coin })),
-      el('span', 'pet-chip', fill(T.chipAfter, { have: st.coins, after: st.coins - b.price })),
-      el('span', 'pet-chip fee', fill(T.chipFee, { fee })),
-    );
+    const chipRow = el('div', 'pet-chips');
+    chips.forEach((c, i) => chipRow.append(el('span', 'pet-chip' + (i === chips.length - 1 ? ' fee' : ''), c)));
     const need = el('p', 'pet-need', T.nameNeeded);
     const row = el('div', 'notice-actions');
-    const ok = el('button', 'btn intro-ok', T.ok);
+    const ok = el('button', 'btn intro-ok', okText);
     ok.type = 'button';
-    const no = el('button', 'btn ghost', T.cancel);
+    const no = el('button', 'btn ghost', cancelText);
     no.type = 'button';
     row.append(ok, no);
-    box.append(pic, el('h2', '', fill(T.confirmTitle, { breed: b.name })), lead, when, label, chips, need, row);
+    box.append(pic, el('h2', '', title), ...body, label, chipRow, need, row);
     back.append(box);
     root.append(back);
 
@@ -203,23 +274,24 @@ export function createShop({ button, root, hud, text = {}, onOpen = () => {} }) 
     input.addEventListener('compositionend', sync);
     sync();
     const close = () => back.remove();
+    const cancel = () => { close(); onCancel(); };
     const submit = () => {
       sync();
       if (!name()) { input.focus(); return; }
       ok.disabled = true;
       close();
-      st.onBuy(b, name());
+      onOk(name());
     };
     ok.addEventListener('click', submit);
-    no.addEventListener('click', close);
+    no.addEventListener('click', cancel);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submit(); } });
     back.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); }
     });
     // 空白鍵、方向鍵是打字用的，不要讓小公主走路或「進入」
     back.addEventListener('keydown', (e) => e.stopPropagation());
     input.focus();
   }
 
-  return { show };
+  return { show, showGift };
 }

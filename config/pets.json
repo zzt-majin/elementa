@@ -1,13 +1,28 @@
 {
-  "_說明": "商店的寵物（2026-11-28 家長決定）。price 是買的價錢（只花歐巴幣）；每天的飼料和清潔費 = price × feeRate（四捨五入），買的隔天開始扣，錢不夠也照扣（歐巴幣變負的，狗狗會肚子餓、不走動）。每種只能買一隻；nameMax 是名字最多幾個字。look 是畫法（tudog 土狗、shepherd 狼犬、husky 哈士奇），colors 是顏色：body 身體、dark 深色的地方、light 淺色的地方（肚子、臉）、eye 眼睛。size 是 3D 大小倍率。改這裡就好，不用動程式。",
+  "_說明": "商店的寵物（2026-11-28 家長決定）。price 是買的價錢（只花歐巴幣）；每天的飼料和清潔費 = price × feeRate（四捨五入），買的隔天開始扣，錢不夠也照扣（歐巴幣變負的，寵物會肚子餓、不走動）。每種只能買一隻，最多買 maxOwned 隻（送的不算）；nameMax 是名字最多幾個字。look 是畫法（tudog 土狗、shepherd 狼犬、husky 哈士奇、lab 拉不拉多、cat 貓），colors 是顏色：body 身體、dark 深色的地方（貓的條紋）、light 淺色的地方（肚子、臉）、eye 眼睛。size 是 3D 大小倍率。voice 是叫聲（tudog、shepherd、husky、lab、tabby），say 是叫的時候頭上跳出的字。改這裡就好，不用動程式。",
   "feeRate": 0.1,
   "nameMax": 16,
+  "maxOwned": 3,
+  "gift": {
+    "_說明": "送給每個小孩的寵物（2026-11-28 家長決定）：breed 是哪一種（breeds 的 code，空的就不送）。小孩按「領取」、取好名字才拿到；關掉的話下次刷新或登入再跳一次。送的不佔 maxOwned，也還能再買一隻同一種；每天的費用照那一種的價錢算，領的隔天開始扣。",
+    "breed": "tudog"
+  },
+  "sound": {
+    "_說明": "寵物的叫聲（瀏覽器即時合成，沒有音檔）。點寵物就叫一聲；平常每隻每 every 秒（最少、最多）自己叫一聲，只在小公主 hear 公尺內才叫，越遠越小聲。volume 是音量（0～1）。背景音樂關掉時叫聲也不出聲。",
+    "volume": 0.6,
+    "every": [30, 60],
+    "hear": 30
+  },
   "breeds": [
-    { "code": "tudog", "name": "臺灣土狗", "price": 100, "look": "tudog", "blurb": "聰明又忠心，跑得很快。", "size": 0.9,
+    { "code": "tudog", "name": "臺灣土狗", "price": 100, "look": "tudog", "blurb": "聰明又忠心，跑得很快。", "size": 0.9, "voice": "tudog", "say": "汪汪！",
       "colors": { "body": "#e0a85a", "dark": "#b97a34", "light": "#f6dfb4", "eye": "#3b2a30" } },
-    { "code": "shepherd", "name": "德國狼犬", "price": 300, "look": "shepherd", "blurb": "又大又勇敢，耳朵高高豎起來。", "size": 1.1,
+    { "code": "tabby", "name": "虎斑貓", "price": 100, "look": "cat", "blurb": "身上有條紋，喜歡在沙灘上散步。", "size": 0.75, "voice": "tabby", "say": "喵～",
+      "colors": { "body": "#e69b4a", "dark": "#b5651d", "light": "#fbe6cc", "eye": "#4f8a3c" } },
+    { "code": "shepherd", "name": "德國狼犬", "price": 300, "look": "shepherd", "blurb": "又大又勇敢，耳朵高高豎起來。", "size": 1.1, "voice": "shepherd", "say": "汪！",
       "colors": { "body": "#c98a45", "dark": "#3b2a30", "light": "#e6b97a", "eye": "#3b2a30" } },
-    { "code": "husky", "name": "哈士奇", "price": 500, "look": "husky", "blurb": "藍眼睛、毛茸茸，最愛到處跑。", "size": 1,
-      "colors": { "body": "#8d97a6", "dark": "#5d6675", "light": "#ffffff", "eye": "#5aa9e6" } }
+    { "code": "husky", "name": "哈士奇", "price": 500, "look": "husky", "blurb": "藍眼睛、毛茸茸，最愛到處跑。", "size": 1, "voice": "husky", "say": "嗚嗚——",
+      "colors": { "body": "#8d97a6", "dark": "#5d6675", "light": "#ffffff", "eye": "#5aa9e6" } },
+    { "code": "lab", "name": "拉不拉多", "price": 600, "look": "lab", "blurb": "溫和又愛玩，耳朵軟軟垂下來，最喜歡游泳。", "size": 1.1, "voice": "lab", "say": "汪嗚～",
+      "colors": { "body": "#f0cf8a", "dark": "#d9ae5f", "light": "#fbe8c0", "eye": "#3b2a30" } }
   ]
 }

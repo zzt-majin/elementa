@@ -36,11 +36,13 @@ export function milestones({ builds = [], plan = [], names = {}, text = {}, time
   const dayOf = (d) => d.year + '-' + String(d.month).padStart(2, '0') + '-' + String(d.day).padStart(2, '0');
   for (const b of effectiveBuilds(builds)) {
     if (b.kind === 'pet') {
-      // 買了寵物：「11/28 買了臺灣土狗小黃！」
+      // 買了寵物：「11/28 買了臺灣土狗小黃！」；送的（key 結尾 -gift）：「11/28 收到禮物臺灣土狗小黃！」
       const d = localDate(b.at, timeZone);
-      const code = b.key.replace(/^pet-/, '');
+      const gift = b.key.endsWith('-gift');
+      const code = b.key.replace(/^pet-/, '').replace(/-gift$/, '');
       const vals = { m: d.month, d: d.day, breed: breeds[code] || '', name: b.name || '' };
-      out.push({ id: b.key, day: dayOf(d), at: b.at, title: fill(text.petTitle, vals), body: fill(text.petBody, vals), line: fill(text.petDiary, vals) });
+      const line = gift ? (text.giftDiary || text.petDiary) : text.petDiary;
+      out.push({ id: b.key, day: dayOf(d), at: b.at, title: fill(text.petTitle, vals), body: fill(text.petBody, vals), line: fill(line, vals) });
       continue;
     }
     if (b.kind === 'road') {

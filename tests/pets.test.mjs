@@ -1,7 +1,7 @@
 // 用 Node 跑：node tests/pets.test.mjs
-// 商店的寵物：每種一隻、每天費用從隔天開始算（台灣時間）、錢不夠變負的、日記、名字最多 16 個字。
+// 商店的寵物：每種一隻、最多三隻、每天費用從隔天開始算（台灣時間）、錢不夠變負的、日記、名字最多 16 個字、送的臺灣土狗。
 import { readFileSync } from 'node:fs';
-import { petRules, ownedPets, petFees, feeSpends, shopState, petRecord, dailyFee, dayNumber, isHungry } from '../engine/pets.js';
+import { petRules, ownedPets, petFees, feeSpends, shopState, petRecord, dailyFee, dayNumber, isHungry, pendingGift, giftRecord, petKey } from '../engine/pets.js';
 import { cleanBuild, createBuildBook, cleanName } from '../engine/build.js';
 import { computeWallet, economyRules } from '../engine/economy.js';
 import { milestones } from '../engine/diary.js';
@@ -16,7 +16,14 @@ const at = (iso) => Date.parse(iso);
 const B = (code) => rules.breeds.find((b) => b.code === code);
 
 // 設定
-ok(rules.breeds.map((b) => b.code + ':' + b.price).join() === 'tudog:100,shepherd:300,husky:500', '三種狗：100／300／500');
+ok(rules.breeds.map((b) => b.code + ':' + b.price).join() === 'tudog:100,tabby:100,shepherd:300,husky:500,lab:600', '五種：土狗 100、虎斑貓 100、狼犬 300、哈士奇 500、拉不拉多 600');
+ok(B('tabby').look === 'cat' && B('lab').look === 'lab', '虎斑貓是貓、拉不拉多有自己的樣子');
+ok(rules.breeds.map((b) => b.voice).join() === 'tudog,tabby,shepherd,husky,lab', '每種的叫聲都不一樣');
+ok(B('tudog').say === '汪汪！' && B('tabby').say === '喵～', '叫的時候頭上的字');
+ok(rules.maxOwned === 3 && rules.gift === 'tudog', '最多買三隻、送臺灣土狗');
+ok(rules.sound.every.join() === '30,60' && rules.sound.hear === 30, '每 30～60 秒自己叫、30 公尺內聽得到');
+ok(petRules({ gift: { breed: 'nope' }, breeds: [{ code: 'a', name: 'A', price: 1 }] }).gift === '', '送的種類不存在就不送');
+ok(petRules({ breeds: [{ code: 'a', name: 'A', price: 1, look: 'cat' }] }).breeds[0].voice === 'tabby', '貓沒寫叫聲就用喵');
 ok(rules.feeRate === 0.1 && rules.nameMax === 16, '每天 10%、名字 16 字');
 ok(dailyFee(100, rules) === 10 && dailyFee(300, rules) === 30 && dailyFee(500, rules) === 50, '每天 10／30／50');
 ok(petRules({ feeRate: 5, nameMax: 0, breeds: [{ code: 'X!', name: 'a', price: 1 }, { code: 'a', name: 'A', price: -1 }] }).breeds.length === 0 && petRules({ feeRate: 5 }).feeRate === 0.1, '不合理的設定用預設');
@@ -68,6 +75,36 @@ ok(shopState(B('shepherd'), { kid: '姐姐', coins: 420, owned }).state === 'rea
 const s = shopState(B('husky'), { kid: '姐姐', coins: 420, owned });
 ok(s.state === 'short' && s.short === 80, '還差 80');
 ok(shopState(B('husky'), { kid: null, coins: 999, owned: [] }).state === 'locked', '沒登入');
+
+// 最多買三隻
+const three = [rec, petRecord({ id: 'q2', at: 5, breed: B('tabby'), name: '咪咪', rules }), petRecord({ id: 'q3', at: 6, breed: B('shepherd'), name: '阿勇', rules })];
+const own3 = ownedPets(three, rules);
+ok(shopState(B('husky'), { kid: '姐姐', coins: 9999, owned: own3, max: 3 }).state === 'full', '買滿三隻，第四種不能買');
+ok(shopState(B('tabby'), { kid: '姐姐', coins: 9999, owned: own3, max: 3 }).state === 'owned', '買過的還是寫「已經有了」');
+
+// 送的臺灣土狗
+const tz2 = 'Asia/Taipei';
+ok(pendingGift([], rules)?.code === 'tudog', '還沒領：要送臺灣土狗');
+ok(giftRecord({ id: 'g1', at: 1, breed: B('tudog'), name: ' ', rules }) === null, '沒取名字不能領');
+const gift = giftRecord({ id: 'g1', at: at('2026-11-28T04:00:00Z'), breed: B('tudog'), name: '阿福', rules });
+ok(gift.key === 'pet-tudog-gift' && gift.coins === 0 && gift.kind === 'pet' && gift.name === '阿福', '領取的紀錄：沒花錢');
+ok(cleanBuild(gift)?.key === 'pet-tudog-gift', '建設本收得下');
+ok(petKey('pet-tudog-gift').gift && petKey('pet-tudog-gift').code === 'tudog' && !petKey('pet-tudog').gift, '分得出送的和買的');
+ok(pendingGift([gift], rules) === null, '領過就不再送');
+ok(pendingGift([rec], rules)?.code === 'tudog', '自己買的土狗不算領過');
+const gb = createBuildBook({ d: {}, load() { return this.d; }, save(x) { this.d = x; } });
+ok(gb.add('妹妹', gift) && gb.add('妹妹', petRecord({ id: 'g2', at: at('2026-11-28T05:00:00Z'), breed: B('tudog'), name: '小黃', rules })), '送的土狗之外還能再買一隻土狗');
+ok(gb.add('妹妹', { ...gift, id: 'g3' }) === false, '送的只能領一次');
+const og = ownedPets(gb.effective('妹妹'), rules);
+ok(og.length === 2 && og.find((p) => p.gift)?.fee === 10, '送的每天也扣 10');
+ok(shopState(B('husky'), { kid: '妹妹', coins: 9999, owned: [...og, ...ownedPets(three.slice(1), rules)], max: 3 }).state === 'full', '送的不佔額度：買的三隻就滿');
+ok(shopState(B('husky'), { kid: '妹妹', coins: 9999, owned: [ownedPets([gift], rules)[0], ...ownedPets(three.slice(1), rules)], max: 3 }).state === 'ready', '送的＋買兩隻，還能買第三隻');
+ok(petFees({ builds: [gift], rules, now: at('2026-11-28T15:00:00Z'), timeZone: tz2 }).total === 0, '領的那天不扣');
+ok(petFees({ builds: [gift], rules, now: at('2026-11-30T04:00:00Z'), timeZone: tz2 }).total === 20, '隔天開始每天 10');
+const gw = computeWallet({ history: [], spends: [gift, ...feeSpends({ builds: [gift], rules, now: at('2026-11-28T10:00:00Z'), timeZone: tz2 })], rules: economyRules({ earn: { firstLoginGift: 120 } }) });
+ok(gw.coins === 120, '領取不花錢');
+const gm = milestones({ builds: [gift], text, timeZone: tz2, breeds: { tudog: '臺灣土狗' } });
+ok(gm[0]?.line === '11/28 收到禮物臺灣土狗阿福！' && gm[0].title === '恭喜有了新朋友！', '日記：' + gm[0]?.line);
 
 // 日記
 const m = milestones({ builds: [rec], text, timeZone: tz, breeds: { tudog: '臺灣土狗' } });

@@ -1,5 +1,5 @@
 // 用 Node 跑：node tests/login.test.mjs
-// 每日登入獎勵（一輪 10、10、10、10、10、50、100，斷掉從第 1 天重來）和累計登入成就（50 天 100，100、200、300…天 200）
+// 每日登入獎勵（一輪 10、10、10、10、10、50、100，斷掉從第 1 天重來）和累計登入成就（50 天 50，100、200、300…天 200）
 import { readFileSync } from 'node:fs';
 import { loginRules, loginSummary, loginRecord, loginKey, milestoneAt, nextReward } from '../engine/login.js';
 import { computeWallet, economyRules } from '../engine/economy.js';
@@ -41,8 +41,8 @@ ok(s.count === 2 && s.coins === 20, '同一天只算一次');
 // 別的種類不算
 ok(loginSummary({ builds: [{ id: 'b', at: t0, kind: 'bridge', key: 'math-chinese', coins: 120 }], rules }).count === 0, '橋不算登入');
 
-// 成就：50 天 100、100 天 200、200 天 200、300 天 200、400 天 200；150、250 天沒有
-ok(milestoneAt(50, rules)?.coins === 100, '50 天 100');
+// 成就：50 天 50、100 天 200、200 天 200、300 天 200、400 天 200；150、250 天沒有
+ok(milestoneAt(50, rules)?.coins === 50, "50 天 50");
 ok(milestoneAt(100, rules)?.coins === 200, '100 天 200');
 ok(milestoneAt(200, rules)?.coins === 200, '200 天 200');
 ok(milestoneAt(300, rules)?.coins === 200 && milestoneAt(400, rules)?.coins === 200, '之後每 100 天 200');
@@ -52,13 +52,13 @@ ok(milestoneAt(150, rules) === null && milestoneAt(250, rules) === null && miles
 const every2 = Array.from({ length: 50 }, (_, i) => i * 2);
 s = loginSummary({ builds: days(every2), rules });
 ok(s.count === 50 && s.milestones.length === 1 && s.milestones[0].days === 50, '斷斷續續也累計到 50 天');
-ok(s.coins === 50 * 10 + 100, '50 次第 1 天＋成就 100：' + s.coins);
+ok(s.coins === 50 * 10 + 50, "50 次第 1 天＋成就 50：" + s.coins);
 ok(s.milestones[0].day === s.days[49].day, '成就記在第 50 天那天');
 
-// 連續 100 天：一輪 200，14 輪 = 2800，再 2 天 20，加上成就 100＋200
+// 連續 100 天：一輪 200，14 輪 = 2800，再 2 天 20，加上成就 50＋200
 const hundred = Array.from({ length: 100 }, (_, i) => i);
 s = loginSummary({ builds: days(hundred), rules });
-ok(s.coins === 14 * 200 + 20 + 100 + 200, '連續 100 天：' + s.coins);
+ok(s.coins === 14 * 200 + 20 + 50 + 200, '連續 100 天：' + s.coins);
 ok(s.milestones.map((m) => m.days).join() === '50,100', '兩個成就');
 
 // 歐巴幣：bonuses 加進賺的
@@ -77,7 +77,7 @@ ok(nextReward(1, rules) === 10 && nextReward(5, rules) === 50 && nextReward(6, r
 const m = milestones({ builds: days(every2), text: text.calendar, login: rules });
 ok(m.length === 1 && m[0].id === 'login-50' && m[0].art === 'login', '日記有 50 天成就');
 ok(m[0].title === '恭喜累計登入 50 天！', '祝賀標題：' + m[0].title);
-ok(/^\d+\/\d+ 累計登入 50 天，拿到 100 歐巴幣！$/.test(m[0].line), '日記一行：' + m[0].line);
+ok(/^\d+\/\d+ 累計登入 50 天，拿到 50 歐巴幣！$/.test(m[0].line), '日記一行：' + m[0].line);
 ok(milestones({ builds: days(every2), text: text.calendar }).length === 0, '沒給登入規則就不算');
 // 和橋混在一起照時間排
 const mixed = milestones({ builds: [...days(every2), { id: 'b', at: t0 + DAY, kind: 'bridge', key: 'math-chinese', coins: 120, gems: {} }], plan: [{ key: 'math-chinese', from: 'math', to: 'chinese' }], names: { math: '數學島', chinese: '國語島' }, text: text.calendar, login: rules });

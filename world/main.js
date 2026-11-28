@@ -20,11 +20,12 @@ import { clockText, msToNextMinute } from './clock.js';
 import { createCalendar } from './calendar.js';
 import { createPhoneUi } from './phone.js';
 import { milestones } from '../engine/diary.js';
-import { petRules, ownedPets, feeSpends, shopState, petRecord, dailyFee, isHungry } from '../engine/pets.js';
+import { petRules, ownedPets, feeSpends, shopState, petRecord, dailyFee, isHungry, pendingGift, giftRecord } from '../engine/pets.js';
 import { loginRules, loginSummary, loginRecord, loginKey, nextReward } from '../engine/login.js';
-import { makeDog } from '../avatar/pet.js';
+import { makePet } from '../avatar/pet.js';
 import { createPetBrain } from '../avatar/pet-walk.js';
 import { createShop } from './shop.js';
+import { createPetVoice } from './pet-voice.js';
 import { createQuizUI } from './quiz-ui.js';
 import { createCardsUI } from './cards-ui.js';
 import { cardSettings, ruleFor, cardState } from '../engine/cards.js';
@@ -331,7 +332,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   const petPrints = new Map(); // 種類 → 足跡（換小孩時重複用，不用一直加到場景裡）
   const ST = () => text.shop || {};
   function setPetTag(p) {
-    const want = hungry ? (ST().hungryBubble || '') : p.pet.name;
+    // 剛叫完：頭上先寫叫聲（「汪汪！」），一下子再換回名字
+    const want = p.sayUntil > performance.now() && p.look.say ? p.look.say : hungry ? (ST().hungryBubble || '') : p.pet.name;
     if (p.tagText === want) return;
     p.tagText = want;
     if (p.tag) { p.model.group.remove(p.tag); p.tagMat?.map?.dispose?.(); p.tagMat?.dispose?.(); }
@@ -360,12 +362,13 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     for (const [k, pet] of want) {
       if (petViews.has(k)) continue;
       const look = pet.look || petConf.breeds[0] || { look: 'tudog', size: 1, colors: { body: '#e0a85a', dark: '#8a5a2b', light: '#f6dfb4', eye: '#3b2a30' } };
-      const model = makeDog(look, Number(pw.scale) || 1);
+      const model = makePet(look, Number(pw.scale) || 1);
+      model.group.userData.petKey = k; // 點到寵物：從打到的那一塊往上找到這個
       view.scene.add(model.group);
       const pwalker = createWalker({ x: 0, z: 0, heading: 0 }, { speed: Number(pw.speed) || 2.6, body: Number(pw.body) || 0.28 });
       const brain = createPetBrain(pwalker, { rest: pw.rest, range: Number(pw.range) || 14 });
       if (!petPrints.has(pet.code)) petPrints.set(pet.code, createFootprints(view.scene, pw.footprints));
-      const v = { pet, look, model, walker: pwalker, brain, prints: petPrints.get(pet.code), tag: null, tagText: null, placed: false };
+      const v = { pet, look, model, walker: pwalker, brain, prints: petPrints.get(pet.code), tag: null, tagText: null, placed: false, sayUntil: 0, nextBark: performance.now() / 1000 + barkGap() };
       setPetTag(v);
       petViews.set(k, v);
     }
@@ -391,8 +394,41 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       p.model.group.rotation.y = p.walker.heading;
       p.prints.step(p.walker, p.walker.heading, ground.beach && p.walker.moving > 0.2, ground.y);
       p.model.animate(dt, p.walker.moving, hungry);
+      if (p.tagText !== null && p.sayUntil && p.sayUntil <= performance.now()) { p.sayUntil = 0; setPetTag(p); }
+      // 偶爾自己叫一聲：只在小公主附近、沒有打開面板、肚子不餓的時候；越遠越小聲
+      const now = performance.now() / 1000;
+      if (now >= p.nextBark) {
+        p.nextBark = now + barkGap();
+        const d = Math.hypot(p.walker.x - walker.x, p.walker.z - walker.z);
+        if (started && !hungry && !hud.isOpen() && !paused && quizRoot.hidden !== false && d <= petSound.hear) bark(p, Math.max(0.15, 1 - d / petSound.hear));
+      }
     }
     for (const f of petPrints.values()) f.update(t);
+  }
+  // ---------- 寵物的叫聲（world/pet-voice.js）：點寵物叫一聲，平常每 30～60 秒自己叫一聲 ----------
+  const petSound = petConf.sound;
+  const voice = createPetVoice({ volume: petSound.volume, muted: () => music.muted });
+  const barkGap = () => petSound.every[0] + (petSound.every[1] - petSound.every[0]) * Math.random();
+  /** 叫一聲：出聲、跳一下、頭上寫「汪汪！」 */
+  function bark(p, level = 1) {
+    const len = voice.play(p.look.voice, level);
+    p.model.hop?.();
+    p.sayUntil = performance.now() + Math.max(1.2, len + 0.6) * 1000;
+    setPetTag(p);
+    p.nextBark = performance.now() / 1000 + barkGap();
+    return len;
+  }
+  /** 點畫面時有沒有點到寵物：回傳那一隻（petViews 的值）或 null */
+  function petAt(e) {
+    const groups = [...petViews.values()].filter((p) => p.model.group.visible).map((p) => p.model.group);
+    if (!groups.length) return null;
+    const rect = canvas.getBoundingClientRect();
+    ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, view.camera);
+    for (const h of raycaster.intersectObjects(groups, true)) {
+      for (let o = h.object; o; o = o.parent) if (o.userData?.petKey && petViews.has(o.userData.petKey)) return petViews.get(o.userData.petKey);
+    }
+    return null;
   }
 
   // ---------- 商店（時鐘左邊）：寵物商店 ----------
@@ -407,10 +443,11 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
       breeds: petConf.breeds,
       owned,
       nameMax: petConf.nameMax,
+      maxOwned: petConf.maxOwned,
       hungry,
       totalFee: owned.reduce((n, p) => n + p.fee, 0),
       fee: (b) => dailyFee(b.price, petConf),
-      shopState: (b) => shopState(b, { kid, coins: w.coins, owned }),
+      shopState: (b) => shopState(b, { kid, coins: w.coins, owned, max: petConf.maxOwned }),
       onBuy: (b, name) => buyPet(b.code, name),
     };
   }
@@ -427,7 +464,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   function buyPet(code, name) {
     const b = petConf.breeds.find((x) => x.code === code);
     if (!kid || !b) return false;
-    if (shopState(b, { kid, coins: walletOf(kid).coins, owned: ownedPets(builds.effective(kid), petConf) }).state !== 'ready') { openShop(); return false; }
+    if (shopState(b, { kid, coins: walletOf(kid).coins, owned: ownedPets(builds.effective(kid), petConf), max: petConf.maxOwned }).state !== 'ready') { openShop(); return false; }
     const rec = petRecord({ id: newEntryId(), at: Date.now(), breed: b, name, rules: petConf });
     if (!rec || !builds.add(kid, rec)) { openShop(); return false; }
     try { hooks.onBuild?.(kid, { ...rec }); } catch (err) { console.error(err); }
@@ -437,6 +474,39 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     const v = petViews.get(kid + '|' + rec.key + '|' + rec.name);
     if (v) { v.walker.place({ x: walker.x + 1.2, z: walker.z + 0.6, heading: walker.heading }); v.placed = true; }
     hud.flash(fill(ST().done, { name: rec.name }), 5000);
+    setTimeout(checkCelebrate, 400);
+    return true;
+  }
+  // ---------- 送的寵物（config/pets.json 的 gift）：跳視窗，按「領取」、取好名字才拿到；關掉的話這次不再問，下次刷新或登入再問 ----------
+  const giftLater = new Set(); // 這次打開網站按過「等一下再領」的小孩
+  let giftOpen = false;
+  /** 有沒有要送的寵物還沒領：有就跳視窗，回傳 true（祝賀畫面等它關掉再跳） */
+  function checkGift() {
+    if (giftOpen) return true;
+    if (!started || !kid || paused || growing || giftLater.has(kid) || calendar.isOpen() || hudRoot.querySelector('.intro-back')) return false;
+    const b = pendingGift(builds.effective(kid), petConf);
+    if (!b) return false;
+    giftOpen = true;
+    walker.stop();
+    const who = kid;
+    shop.showGift({ breed: b, coin: econ.currencyName || '歐巴幣', fee: dailyFee(b.price, petConf), nameMax: petConf.nameMax, maxOwned: petConf.maxOwned },
+      (name) => { giftOpen = false; if (who === kid) claimGift(name); },
+      () => { giftOpen = false; giftLater.add(who); setTimeout(checkCelebrate, 300); });
+    return true;
+  }
+  /** 領取：記到建設本（會存到試算表，coins 0），寵物出現在小公主旁邊，跳「恭喜有了新朋友！」 */
+  function claimGift(name) {
+    const b = kid ? pendingGift(builds.effective(kid), petConf) : null;
+    if (!b) return false;
+    const rec = giftRecord({ id: newEntryId(), at: Date.now(), breed: b, name, rules: petConf });
+    if (!rec || !builds.add(kid, rec)) return false;
+    try { hooks.onBuild?.(kid, { ...rec }); } catch (err) { console.error(err); }
+    showWallet();
+    syncPets();
+    const v = petViews.get(kid + '|' + rec.key + '|' + rec.name);
+    if (v) { v.walker.place({ x: walker.x + 1.2, z: walker.z + 0.6, heading: walker.heading }); v.placed = true; setTimeout(() => bark(v), 300); }
+    hud.flash(fill(ST().done, { name: rec.name }), 5000);
+    refreshDiary();
     setTimeout(checkCelebrate, 400);
     return true;
   }
@@ -497,6 +567,7 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   /** 有還沒祝賀的里程碑就跳出來（一次一個，按了再跳下一個） */
   function checkCelebrate() {
     if (!started || !kid || paused || growing || calendar.isOpen()) return;
+    if (checkGift()) return; // 送的寵物先問，領了或關掉再跳祝賀
     const done = celebrated();
     const next = allMilestones().find((m) => !done.has(m.id));
     if (!next) return;
@@ -1206,6 +1277,8 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
   canvas.addEventListener('pointerup', (e) => {
     if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
     if (paused) return;
+    // 點到寵物：叫一聲（走路模式和地圖模式都一樣），不走過去
+    if (!hud.isOpen() || mode === 'walk') { const p = petAt(e); if (p) { bark(p); return; } }
     if (mode === 'walk') { tapWalk(e); return; }
     const w = hitAt(e);
     if (!w) return;
@@ -1340,7 +1413,10 @@ export async function startWorld({ canvas, hudRoot, quizRoot, cardsRoot, gameRoo
     ...api, openIsland, openBuilding, backToAll, setMode, mode: () => mode, quiz, cards: cardsUI, race: raceUI, openBridge, openRoad, calendar, openShop, buyPet,
     /** 檢查用（自動測試讀小公主在哪、走得到哪些島）；網站本身不用 */
     debug: { footprints: () => footprints.count(), walker, area: () => area, reach: () => [...reach], mist: () => mistGroup.children.map((m) => m.userData.mist), bridges: () => [...bridgeViews].map(([k, v]) => k + ':' + v.kind), growing: () => !!growing, road: () => roadView?.kind || null, roadOwner: () => roadInfo?.kid || null, visitReach: () => [...visitReach], onVisit: () => onVisit, roadLine: () => roadLine, visitRoot,
-      pets: () => [...petViews.values()].map((p) => ({ key: p.pet.key, name: p.pet.name, x: p.walker.x, z: p.walker.z, moving: p.walker.moving, tag: p.tagText, target: !!p.walker.target })),
+      pets: () => [...petViews.values()].map((p) => ({ key: p.pet.key, name: p.pet.name, gift: !!p.pet.gift, look: p.look.look, voice: p.look.voice, x: p.walker.x, z: p.walker.z, moving: p.walker.moving, tag: p.tagText, target: !!p.walker.target })),
+      petGroup: (key) => [...petViews.values()].find((p) => p.pet.key === key)?.model.group || null,
+      barked: () => voice.played, barkSoon: () => { for (const p of petViews.values()) p.nextBark = 0; },
+      giftPending: () => (kid ? pendingGift(builds.effective(kid), petConf)?.code || '' : ''), claimGift,
       petArea: () => area?.pets || null, hungry: () => hungry, petPrints: () => [...petPrints.values()].reduce((n, f) => n + f.count(), 0) },
   };
 }

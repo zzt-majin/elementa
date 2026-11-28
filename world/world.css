@@ -296,3 +296,6 @@ button:focus-visible { outline: 3px solid var(--deep); outline-offset: 2px; }
 .pet-chip.fee { background: #ffe3ea; }
 .pet-need { margin: 0; text-align: center; font-size: 14px; font-weight: 700; color: #c8232c; }
 .pet-need[hidden] { display: none; }
+.pet-gift-line { margin: 0 0 6px; padding: 8px 12px; border-radius: 12px; background: #f3fbef; color: #2f6b3a; font-weight: 700; }
+.pet-max { margin: 0 0 6px; }
+.pet-later-note { margin: 0; text-align: center; font-size: 13px; }
